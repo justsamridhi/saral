@@ -1,13 +1,13 @@
 /**
- * SARAL Companion — Content Script (Phase 3: Active Subscription & Auto-Pay Tracker)
- * Detects active merchant domains, checks verified vouchers & recurring mandates,
- * and surfaces an isolated, non-intrusive smart overlay.
+ * SARAL Companion — Content Script (Phase 4: Password Guardian & Security Habit Coach)
+ * Detects merchant domains, queries verified rewards, active mandates,
+ * and passively monitors password forms to surface the "Security Nag" habit coach.
  *
  * Security & Integrity Invariants:
- * 1. Do NOT handle card numbers, CVVs, or bank authorization tokens.
- * 2. Mandate modifications/cancellations occur solely via SARAL web dashboard.
- * 3. Scoped strictly within Shadow DOM to prevent host style conflicts.
- * 4. Respects [Vouchers] and [Subscriptions] toggles in real time.
+ * 1. Plaintext passwords NEVER transmitted to servers or logs.
+ * 2. Breach checking uses local SHA-1 prefix k-anonymity.
+ * 3. Scoped strictly within isolated Shadow DOM.
+ * 4. Respects [Vouchers], [Subscriptions], and [Password Alert] toggles in real time.
  */
 
 (function () {
@@ -27,8 +27,17 @@
     return;
   }
 
+  // Internal state
+  let currentContext = {
+    vouchers: [],
+    subscriptions: [],
+    security: { enabled: true, hasNag: false, nagMessage: null, credentials: [] },
+    domain: cleanDomain,
+    livePasswordNag: null // Set if user types weak/breached password
+  };
+
   /**
-   * Query background worker for vouchers and subscriptions on this domain
+   * Query background worker for vouchers, subscriptions, and security habit status
    */
   async function inspectPageContext() {
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
@@ -36,8 +45,7 @@
     }
 
     try {
-      // Parallel queries to background worker
-      const [voucherRes, subRes] = await Promise.all([
+      const [voucherRes, subRes, secRes] = await Promise.all([
         new Promise((resolve) => {
           chrome.runtime.sendMessage(
             { type: 'CHECK_SITE_VOUCHERS', domain: cleanDomain },
@@ -49,19 +57,34 @@
             { type: 'CHECK_SITE_SUBSCRIPTIONS', domain: cleanDomain },
             (res) => resolve(chrome.runtime.lastError ? null : res)
           );
+        }),
+        new Promise((resolve) => {
+          chrome.runtime.sendMessage(
+            { type: 'CHECK_DOMAIN_SECURITY', domain: cleanDomain },
+            (res) => resolve(chrome.runtime.lastError ? null : res)
+          );
         })
       ]);
 
-      const vouchers = (voucherRes && voucherRes.enabled && Array.isArray(voucherRes.vouchers))
+      currentContext.vouchers = (voucherRes && voucherRes.enabled && Array.isArray(voucherRes.vouchers))
         ? voucherRes.vouchers
         : [];
 
-      const subscriptions = (subRes && subRes.enabled && Array.isArray(subRes.subscriptions))
+      currentContext.subscriptions = (subRes && subRes.enabled && Array.isArray(subRes.subscriptions))
         ? subRes.subscriptions
         : [];
 
-      if (vouchers.length > 0 || subscriptions.length > 0) {
-        mountCompanionWidget({ vouchers, subscriptions, domain: cleanDomain });
+      currentContext.security = (secRes && secRes.enabled)
+        ? secRes
+        : { enabled: false, hasNag: false, nagMessage: null, credentials: [] };
+
+      if (
+        currentContext.vouchers.length > 0 ||
+        currentContext.subscriptions.length > 0 ||
+        currentContext.security.hasNag ||
+        currentContext.livePasswordNag
+      ) {
+        mountCompanionWidget();
       } else {
         removeExistingWidget();
       }
@@ -78,7 +101,7 @@
   /**
    * Mounts the floating widget inside an isolated Shadow DOM
    */
-  function mountCompanionWidget({ vouchers, subscriptions, domain }) {
+  function mountCompanionWidget() {
     removeExistingWidget();
 
     const host = document.createElement('div');
@@ -87,20 +110,29 @@
 
     const shadow = host.attachShadow({ mode: 'open' });
 
-    // Link scoped stylesheet inside shadow root
     const styleLink = document.createElement('link');
     styleLink.rel = 'stylesheet';
     styleLink.href = chrome.runtime.getURL('content.css');
     shadow.appendChild(styleLink);
 
-    // Root container
     const container = document.createElement('div');
     container.id = 'saral-companion-root';
     shadow.appendChild(container);
 
     let isExpanded = false;
+    let generatedPassword = '';
+
+    // Generate initial strong password candidate
+    if (typeof SaralCrypto !== 'undefined') {
+      generatedPassword = SaralCrypto.generateStrongPassword({ length: 16 });
+    } else {
+      generatedPassword = 'Srl$' + Math.random().toString(36).substring(2, 10).toUpperCase() + '#99';
+    }
+
+    const { vouchers, subscriptions, security, livePasswordNag } = currentContext;
     const hasVouchers = vouchers.length > 0;
     const hasSubs = subscriptions.length > 0;
+    const hasNag = Boolean(security.hasNag || livePasswordNag);
     const primarySub = hasSubs ? subscriptions[0] : null;
 
     function render() {
@@ -114,8 +146,22 @@
         pill.className = 'saral-pill-minimized';
         pill.title = 'Click to open SARAL Companion';
 
-        if (hasSubs && !hasVouchers) {
-          // Standalone Subscription Pill (e.g. claude.ai, netflix.com)
+        if (hasNag) {
+          // Priority 1: Security Habit Coach Nag
+          pill.innerHTML = `
+            <span class="saral-pill-dot saral-pill-dot-red"></span>
+            <span class="saral-pill-logo">saral</span>
+            <span class="saral-pill-badge saral-pill-badge-nag">
+              ⚠️ Password Rotation Due
+            </span>
+            <span class="saral-pill-arrow">
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd"/>
+              </svg>
+            </span>
+          `;
+        } else if (hasSubs && !hasVouchers) {
+          // Priority 2: Standalone Subscription Pill
           pill.innerHTML = `
             <span class="saral-pill-dot saral-pill-dot-indigo"></span>
             <span class="saral-pill-logo">saral</span>
@@ -129,7 +175,7 @@
             </span>
           `;
         } else {
-          // Voucher (or Dual) Pill
+          // Priority 3: Rewards Voucher Pill
           const topDiscount = vouchers[0]?.discount || 'Deals Available';
           pill.innerHTML = `
             <span class="saral-pill-dot"></span>
@@ -157,12 +203,20 @@
         const card = document.createElement('div');
         card.className = 'saral-card-expanded';
 
+        let tagText = 'Smart Rewards';
+        let tagClass = 'saral-header-tag';
+
+        if (hasNag) {
+          tagText = 'Password Guardian';
+          tagClass = 'saral-header-tag saral-header-tag-red';
+        } else if (hasSubs && !hasVouchers) {
+          tagText = 'Auto-Pay Guardian';
+          tagClass = 'saral-header-tag saral-header-tag-indigo';
+        }
+
         // Header
         const header = document.createElement('div');
         header.className = 'saral-card-header';
-        const tagText = (hasSubs && !hasVouchers) ? 'Auto-Pay Guardian' : 'Smart Rewards';
-        const tagClass = (hasSubs && !hasVouchers) ? 'saral-header-tag saral-header-tag-indigo' : 'saral-header-tag';
-
         header.innerHTML = `
           <div class="saral-brand-group">
             <span class="saral-header-title">saral</span>
@@ -198,8 +252,58 @@
         const body = document.createElement('div');
         body.className = 'saral-card-body';
 
-        // 1. Integrated Auto-Pay Banner (if both vouchers & sub exist on site, e.g. amazon.in)
-        if (hasSubs && hasVouchers && primarySub) {
+        // 1. Password Guardian Security Nag Banner (Phase 4)
+        if (hasNag) {
+          const nagBanner = document.createElement('div');
+          nagBanner.className = 'saral-security-nag-banner';
+          const nagMsg = livePasswordNag || security.nagMessage || 'Password Rotation Due: Stale or reused credential detected on this site.';
+
+          nagBanner.innerHTML = `
+            <div class="saral-nag-header">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+              </svg>
+              <span>Security Habit Coach ("The Nag")</span>
+            </div>
+            <div class="saral-nag-msg">${escapeHTML(nagMsg)}</div>
+            <div class="saral-generator-box">
+              <div class="saral-gen-display-row">
+                <span class="saral-gen-pwd-text" id="gen-pwd-display">${escapeHTML(generatedPassword)}</span>
+                <button type="button" class="saral-btn-refresh-pwd" id="btn-refresh-pwd" title="Generate another strong password">
+                  <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+                  </svg>
+                </button>
+              </div>
+              <button type="button" class="saral-btn-copy-pwd" id="btn-copy-generated">
+                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/>
+                  <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"/>
+                </svg>
+                <span>Copy Strong Password</span>
+              </button>
+            </div>
+          `;
+
+          nagBanner.querySelector('#btn-refresh-pwd').addEventListener('click', () => {
+            if (typeof SaralCrypto !== 'undefined') {
+              generatedPassword = SaralCrypto.generateStrongPassword({ length: 16 });
+            } else {
+              generatedPassword = 'Srl$' + Math.random().toString(36).substring(2, 10).toUpperCase() + '#99';
+            }
+            nagBanner.querySelector('#gen-pwd-display').textContent = generatedPassword;
+          });
+
+          const btnCopyPwd = nagBanner.querySelector('#btn-copy-generated');
+          btnCopyPwd.addEventListener('click', () => {
+            copyToClipboard(generatedPassword, btnCopyPwd);
+          });
+
+          body.appendChild(nagBanner);
+        }
+
+        // 2. Integrated Auto-Pay Banner
+        if (hasSubs && primarySub && !hasNag) {
           const banner = document.createElement('div');
           banner.className = 'saral-integrated-mandate-banner';
           banner.innerHTML = `
@@ -227,47 +331,7 @@
           body.appendChild(banner);
         }
 
-        // 2. Standalone Subscription Card View (e.g. claude.ai, netflix.com)
-        if (hasSubs && !hasVouchers && primarySub) {
-          const subCard = document.createElement('div');
-          subCard.className = 'saral-subscription-card-content';
-          subCard.innerHTML = `
-            <div class="saral-sub-main-info">
-              <div class="saral-sub-service-name">${escapeHTML(primarySub.service)}</div>
-              <div class="saral-sub-price-row">
-                <span class="saral-sub-price">${escapeHTML(primarySub.amount)}</span>
-                <span class="saral-sub-frequency">per ${escapeHTML(primarySub.frequency)}</span>
-              </div>
-              <div class="saral-sub-meta-grid">
-                <div class="saral-sub-meta-item">
-                  <span class="saral-sub-meta-label">Plan Tier</span>
-                  <span class="saral-sub-meta-val">${escapeHTML(primarySub.plan || 'Active')}</span>
-                </div>
-                <div class="saral-sub-meta-item">
-                  <span class="saral-sub-meta-label">Next Renewal</span>
-                  <span class="saral-sub-meta-val saral-sub-renewal-highlight">${escapeHTML(primarySub.renewalDate)}</span>
-                </div>
-                <div class="saral-sub-meta-item">
-                  <span class="saral-sub-meta-label">Payment Channel</span>
-                  <span class="saral-sub-meta-val">${escapeHTML(primarySub.autoPayMethod)}</span>
-                </div>
-              </div>
-            </div>
-            <button type="button" class="saral-btn-manage-primary">
-              <span>Manage on SARAL Dashboard</span>
-              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 0 014.25 4h4a.75.75 0 010 1.5h-4z" clip-rule="evenodd"/>
-                <path fill-rule="evenodd" d="M6.19 13.81a.75.75 0 010-1.06l6.47-6.47H9.75a.75.75 0 010-1.5h4.5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0V7.06l-6.25 6.25a.75.75 0 01-1.06 0z" clip-rule="evenodd"/>
-              </svg>
-            </button>
-          `;
-          subCard.querySelector('.saral-btn-manage-primary').addEventListener('click', () => {
-            chrome.runtime.sendMessage({ type: 'OPEN_SARAL_MANAGE' });
-          });
-          body.appendChild(subCard);
-        }
-
-        // 3. Voucher items (if present)
+        // 3. Voucher items
         if (hasVouchers) {
           vouchers.forEach((v) => {
             const item = document.createElement('div');
@@ -310,9 +374,9 @@
             <svg width="11" height="11" viewBox="0 0 20 20" fill="#10B981">
               <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
             </svg>
-            Verified SARAL Surface
+            Zero Plaintext Leakage
           </span>
-          <span>Zero Secret Exposure</span>
+          <span>Web Crypto k-Anonymity</span>
         `;
         card.appendChild(footer);
 
@@ -321,6 +385,52 @@
     }
 
     render();
+  }
+
+  /**
+   * Passive Form Inspection (Phase 4):
+   * Monitors password input fields on page. If user focuses or enters a password,
+   * checks for weak entropy or breach exposure via local k-anonymity.
+   */
+  function setupPassivePasswordInspection() {
+    let breachDebounce = null;
+
+    document.addEventListener('focusin', (e) => {
+      const target = e.target;
+      if (target && target.tagName === 'INPUT' && target.type === 'password') {
+        // If domain has known stale credentials, trigger nag on focus
+        if (currentContext.security.hasNag && !sessionStorage.getItem(DISMISS_KEY)) {
+          mountCompanionWidget();
+        }
+      }
+    }, true);
+
+    document.addEventListener('input', (e) => {
+      const target = e.target;
+      if (target && target.tagName === 'INPUT' && target.type === 'password') {
+        const val = target.value;
+        if (!val || val.length < 5) return;
+
+        clearTimeout(breachDebounce);
+        breachDebounce = setTimeout(async () => {
+          if (typeof SaralCrypto !== 'undefined') {
+            const strength = SaralCrypto.evaluatePasswordStrength(val);
+            if (strength.score <= 1) {
+              currentContext.livePasswordNag = `⚠️ Weak Password (${strength.label}): ${strength.issues[0] || 'Low entropy'}. Let SARAL generate a strong replacement.`;
+              mountCompanionWidget();
+              return;
+            }
+
+            // K-Anonymity breach check
+            const breach = await SaralCrypto.checkPasswordBreach(val);
+            if (breach && breach.breached) {
+              currentContext.livePasswordNag = `⚠️ Compromised Password! Seen in ${breach.count.toLocaleString()} data breaches. Change to a fresh uncompromised password immediately.`;
+              mountCompanionWidget();
+            }
+          }
+        }, 600);
+      }
+    }, true);
   }
 
   /**
@@ -371,12 +481,16 @@
 
   // Trigger inspection on page load
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', inspectPageContext);
+    document.addEventListener('DOMContentLoaded', () => {
+      inspectPageContext();
+      setupPassivePasswordInspection();
+    });
   } else {
     inspectPageContext();
+    setupPassivePasswordInspection();
   }
 
-  // Listen for storage/toggle changes in real time
+  // Real-time toggle change sync
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === 'local' && changes.saral_extension_settings) {

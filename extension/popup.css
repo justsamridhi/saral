@@ -838,6 +838,278 @@ body::-webkit-scrollbar-thumb {
   background-color: #E2E8F0;
 }
 
+/* ======================================================== */
+/* PASSWORD GUARDIAN & HABIT COACH (PHASE 4)               */
+/* ======================================================== */
+
+.card-tag-danger {
+  background-color: #FEF2F2 !important;
+  color: #DC2626 !important;
+  border: 1px solid #FECACA;
+}
+
+.security-audit-block {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.audit-score-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.audit-score-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.audit-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.audit-score-display {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.score-number {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0F172A;
+}
+
+.score-max {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.audit-tags-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.audit-chip {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.chip-warning {
+  background-color: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #FDE68A;
+}
+
+.chip-danger {
+  background-color: #FEF2F2;
+  color: #DC2626;
+  border: 1px solid #FECACA;
+}
+
+.chip-safe {
+  background-color: #ECFDF5;
+  color: #059669;
+  border: 1px solid #A7F3D0;
+}
+
+.score-progress-track {
+  width: 100%;
+  height: 5px;
+  background-color: #E2E8F0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.score-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #F59E0B, #10B981);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Domain Credential Box */
+.domain-cred-box {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.domain-cred-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.domain-cred-service {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.domain-status-pill {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.pill-danger {
+  background-color: #FEF2F2;
+  color: #DC2626;
+  border: 1px solid #FECACA;
+}
+
+.pill-safe {
+  background-color: #ECFDF5;
+  color: #059669;
+  border: 1px solid #A7F3D0;
+}
+
+.domain-cred-login-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.domain-cred-user {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.domain-cred-pwd {
+  font-family: monospace;
+  color: var(--text-light);
+  letter-spacing: 0.1em;
+}
+
+.domain-cred-nag-text {
+  font-size: 10px;
+  color: #B45309;
+  background-color: #FFFBEB;
+  border: 1px solid #FEF3C7;
+  border-radius: 5px;
+  padding: 6px 8px;
+  line-height: 1.35;
+}
+
+/* Password Generator Widget */
+.generator-widget-block {
+  background-color: #FFFFFF;
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gen-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.gen-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.btn-icon-tiny {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 3px;
+  display: flex;
+  align-items: center;
+}
+
+.btn-icon-tiny:hover {
+  color: var(--text-primary);
+}
+
+.gen-output-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gen-pwd-display {
+  flex: 1;
+  background-color: var(--bg-card);
+  border: 1px dashed #CBD5E1;
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.05em;
+  user-select: all;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gen-controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.gen-slider-group {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gen-slider-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.gen-slider {
+  flex: 1;
+  height: 4px;
+  accent-color: #0F172A;
+  cursor: pointer;
+}
+
+.gen-check-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.gen-check-label input {
+  accent-color: #0F172A;
+}
+
 .card-tag {
   font-size: 9px;
   font-weight: 600;

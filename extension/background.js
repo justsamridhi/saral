@@ -1,15 +1,19 @@
 /**
  * SARAL Companion Extension — Background Service Worker (Manifest V3)
- * Phase 3: Active Subscription & Auto-Pay Tracker
- * Coordinates lifecycle, domain inspection, badge prioritization, and secure routing.
+ * Phase 4: Password Guardian & Security Habit Coach ("The Nag")
+ * Coordinates lifecycle, domain inspection, k-anonymity breach lookups, and badge priority.
  *
- * Security Invariant:
- * Pure client surface. Under NO circumstances should any Supabase service-role
- * keys, payment card secrets, CVVs, or bank authorization tokens be held here.
+ * Security Invariants:
+ * 1. Plaintext passwords NEVER logged or transmitted to central servers.
+ * 2. Breach lookups use k-anonymity (5-character SHA-1 prefix only).
+ * 3. Pure client surface with zero payment or database secret keys.
  */
 
-// Import storage & API helpers into service worker scope
-importScripts('utils/storage.js', 'utils/api.js');
+// Import storage, API, and crypto helpers into worker scope
+importScripts('utils/storage.js', 'utils/api.js', 'utils/crypto.js');
+
+// In-memory cache for HIBP range responses to prevent redundant network lookups
+const breachLookupCache = new Map();
 
 // Initialize default settings and state on install
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -50,28 +54,31 @@ function updateGlobalBadge(isAuthenticated) {
 }
 
 /**
- * Update tab-specific badge following Phase 3 priority rules:
- * 1. If active vouchers exist -> show voucher count (Blue)
- * 2. Else if active subscription mandate exists -> show "AUTO" (Indigo)
- * 3. Else if authenticated -> show "ON" (Green)
- * 4. Else -> clear badge
+ * Update tab-specific badge following Phase 4 priority rules:
+ * 1. If security breach/stale credential nag exists -> show "NAG" (Crimson #EF4444)
+ * 2. Else if active vouchers exist -> show voucher count (Blue #2563EB)
+ * 3. Else if active subscription mandate exists -> show "AUTO" (Indigo #4F46E5)
+ * 4. Else if authenticated -> show "ON" (Emerald #10B981)
+ * 5. Else -> clear badge
  *
  * @param {number} tabId
- * @param {number} voucherCount
- * @param {number} subscriptionCount
- * @param {boolean} isAuthenticated
+ * @param {object} status
  */
-function updateTabPriorityBadge(tabId, voucherCount, subscriptionCount, isAuthenticated) {
+function updateTabPriorityBadge(tabId, { hasNag = false, voucherCount = 0, subscriptionCount = 0, isAuthenticated = false } = {}) {
   if (!chrome.action || !tabId) return;
 
-  if (voucherCount > 0) {
+  if (hasNag) {
+    chrome.action.setBadgeText({ tabId, text: 'NAG' });
+    chrome.action.setBadgeBackgroundColor({ tabId, color: '#EF4444' }); // Crimson Warning
+    chrome.action.setTitle({ tabId, title: 'SARAL Password Guardian: Weak or breached credential detected' });
+  } else if (voucherCount > 0) {
     chrome.action.setBadgeText({ tabId, text: String(voucherCount) });
     chrome.action.setBadgeBackgroundColor({ tabId, color: '#2563EB' }); // Blue
     chrome.action.setTitle({ tabId, title: `SARAL Companion: ${voucherCount} partner voucher(s) available` });
   } else if (subscriptionCount > 0) {
     chrome.action.setBadgeText({ tabId, text: 'AUTO' });
     chrome.action.setBadgeBackgroundColor({ tabId, color: '#4F46E5' }); // Indigo
-    chrome.action.setTitle({ tabId, title: `SARAL Companion: Auto-Pay mandate active on this service` });
+    chrome.action.setTitle({ tabId, title: 'SARAL Companion: Auto-Pay mandate active on this service' });
   } else if (isAuthenticated) {
     chrome.action.setBadgeText({ tabId, text: 'ON' });
     chrome.action.setBadgeBackgroundColor({ tabId, color: '#10B981' }); // Emerald
@@ -116,26 +123,39 @@ async function handleTabContext(tabId, rawUrl) {
     // Cache current active domain
     await chrome.storage.local.set({ saral_current_domain: domain });
 
-    // Check user preferences and session
     const [settings, token] = await Promise.all([
       SaralStorage.getSettings(),
       SaralStorage.getToken()
     ]);
 
+    let hasNag = false;
     let voucherCount = 0;
     let subscriptionCount = 0;
 
+    // 1. Check Security Guardian Nag Status
+    if (settings && settings.passwordAlertEnabled) {
+      const creds = await saralApi.fetchVaultCredentials(domain, token);
+      hasNag = creds.some(c => c.isBreached || c.ageDays > 90 || c.strengthScore <= 1);
+    }
+
+    // 2. Check Vouchers
     if (settings && settings.vouchersEnabled) {
       const vouchers = await saralApi.fetchVouchersForDomain(domain, token);
       voucherCount = vouchers.length;
     }
 
+    // 3. Check Subscriptions
     if (settings && settings.subscriptionsEnabled) {
       const subs = await saralApi.fetchSubscriptionsForDomain(domain, token);
       subscriptionCount = subs.length;
     }
 
-    updateTabPriorityBadge(tabId, voucherCount, subscriptionCount, Boolean(token));
+    updateTabPriorityBadge(tabId, {
+      hasNag,
+      voucherCount,
+      subscriptionCount,
+      isAuthenticated: Boolean(token)
+    });
   } catch (err) {
     console.warn('[handleTabContext Error]', err);
   }
@@ -147,7 +167,96 @@ async function handleTabContext(tabId, rawUrl) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || !message.type) return false;
 
-  // 1. Content Script: Check vouchers for domain
+  // 1. Password Guardian: K-Anonymity Breach Lookup (Phase 4)
+  if (message.type === 'CHECK_PASSWORD_BREACH') {
+    (async () => {
+      try {
+        const password = message.password || '';
+        if (!password) {
+          sendResponse({ breached: false, count: 0 });
+          return;
+        }
+
+        // Compute prefix for cache key
+        const fullHash = await SaralCrypto.sha1Hex(password);
+        const prefix = fullHash.substring(0, 5);
+
+        if (breachLookupCache.has(fullHash)) {
+          sendResponse(breachLookupCache.get(fullHash));
+          return;
+        }
+
+        const result = await SaralCrypto.checkPasswordBreach(password);
+        breachLookupCache.set(fullHash, result);
+        sendResponse(result);
+      } catch (err) {
+        console.error('[CHECK_PASSWORD_BREACH Error]', err);
+        sendResponse({ breached: false, count: 0, error: err.message });
+      }
+    })();
+    return true; // Async channel
+  }
+
+  // 2. Password Guardian: Domain Security Check (Phase 4)
+  if (message.type === 'CHECK_DOMAIN_SECURITY') {
+    (async () => {
+      try {
+        const domain = (message.domain || '').replace(/^www\./, '').toLowerCase();
+        const [settings, token] = await Promise.all([
+          SaralStorage.getSettings(),
+          SaralStorage.getToken()
+        ]);
+
+        if (!settings.passwordAlertEnabled) {
+          sendResponse({ enabled: false, credentials: [], hasNag: false, domain });
+          return;
+        }
+
+        const creds = await saralApi.fetchVaultCredentials(domain, token);
+        const nagItem = creds.find(c => c.isBreached || c.ageDays > 90 || c.strengthScore <= 1);
+        const hasNag = Boolean(nagItem);
+
+        if (sender && sender.tab && sender.tab.id && hasNag) {
+          updateTabPriorityBadge(sender.tab.id, { hasNag: true, isAuthenticated: Boolean(token) });
+        }
+
+        sendResponse({
+          enabled: true,
+          credentials: creds || [],
+          hasNag,
+          nagMessage: nagItem ? nagItem.nagMessage : null,
+          domain
+        });
+      } catch (err) {
+        sendResponse({ enabled: false, credentials: [], hasNag: false, error: err.message });
+      }
+    })();
+    return true;
+  }
+
+  // 3. Password Guardian: Generate Secure Password
+  if (message.type === 'GENERATE_STRONG_PASSWORD') {
+    const pwd = SaralCrypto.generateStrongPassword(message.options || {});
+    const strength = SaralCrypto.evaluatePasswordStrength(pwd);
+    sendResponse({ password: pwd, strength });
+    return false;
+  }
+
+  // 4. Password Guardian: Overall Vault Audit
+  if (message.type === 'GET_SECURITY_AUDIT') {
+    (async () => {
+      try {
+        const token = await SaralStorage.getToken();
+        const audit = await saralApi.fetchSecurityAudit(token);
+        sendResponse({ audit });
+      } catch (err) {
+        sendResponse({ audit: null, error: err.message });
+      }
+    })();
+    return true;
+  }
+
+  // 5. Content Script: Check vouchers for domain
   if (message.type === 'CHECK_SITE_VOUCHERS') {
     (async () => {
       try {
@@ -163,18 +272,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         const vouchers = await saralApi.fetchVouchersForDomain(domain, token);
-
-        // Also check subscriptions for badge calculation
-        let subCount = 0;
-        if (settings.subscriptionsEnabled) {
-          const subs = await saralApi.fetchSubscriptionsForDomain(domain, token);
-          subCount = subs.length;
-        }
-
-        if (sender && sender.tab && sender.tab.id) {
-          updateTabPriorityBadge(sender.tab.id, vouchers.length, subCount, Boolean(token));
-        }
-
         sendResponse({
           enabled: true,
           vouchers: vouchers || [],
@@ -182,14 +279,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           isAuthenticated: Boolean(token)
         });
       } catch (err) {
-        console.error('[CHECK_SITE_VOUCHERS Error]', err);
         sendResponse({ enabled: false, vouchers: [], error: err.message });
       }
     })();
-    return true; // Async channel
+    return true;
   }
 
-  // 2. Content Script: Check subscriptions for domain (Phase 3)
+  // 6. Content Script: Check subscriptions for domain
   if (message.type === 'CHECK_SITE_SUBSCRIPTIONS') {
     (async () => {
       try {
@@ -205,18 +301,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         const subscriptions = await saralApi.fetchSubscriptionsForDomain(domain, token);
-
-        // Also check vouchers for badge synchronization
-        let voucherCount = 0;
-        if (settings.vouchersEnabled) {
-          const vouchers = await saralApi.fetchVouchersForDomain(domain, token);
-          voucherCount = vouchers.length;
-        }
-
-        if (sender && sender.tab && sender.tab.id) {
-          updateTabPriorityBadge(sender.tab.id, voucherCount, subscriptions.length, Boolean(token));
-        }
-
         sendResponse({
           enabled: true,
           subscriptions: subscriptions || [],
@@ -224,14 +308,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           isAuthenticated: Boolean(token)
         });
       } catch (err) {
-        console.error('[CHECK_SITE_SUBSCRIPTIONS Error]', err);
         sendResponse({ enabled: false, subscriptions: [], error: err.message });
       }
     })();
     return true;
   }
 
-  // 3. Popup: Get all monitored user subscriptions
+  // 7. Get All Subscriptions
   if (message.type === 'GET_ALL_SUBSCRIPTIONS') {
     (async () => {
       try {
@@ -246,7 +329,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // 4. Safe Deep-Link Handler: Open SARAL web dashboard Activity/Subscriptions tab
+  // 8. Safe Deep-Link Handler
   if (message.type === 'OPEN_SARAL_MANAGE') {
     const targetUrl = message.url || saralApi.getDashboardActivityUrl();
     chrome.tabs.create({ url: targetUrl });
@@ -254,14 +337,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
-  // 5. Auth State Changed
+  // 9. Auth State Changed
   if (message.type === 'SARAL_AUTH_STATE_CHANGED') {
     updateGlobalBadge(Boolean(message.isAuthenticated));
     sendResponse({ success: true });
     return false;
   }
 
-  // 6. Query active tab domain
+  // 10. Query active tab domain
   if (message.type === 'SARAL_GET_ACTIVE_TAB') {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       if (tabs && tabs[0]) {
@@ -282,9 +365,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // 7. Ping check
+  // 11. Ping check
   if (message.type === 'SARAL_PING') {
-    sendResponse({ status: 'ok', version: '0.3.0', timestamp: Date.now() });
+    sendResponse({ status: 'ok', version: '0.4.0', timestamp: Date.now() });
     return false;
   }
 

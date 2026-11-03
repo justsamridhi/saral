@@ -73,6 +73,14 @@
   border: 1px solid #C7D2FE;
 }
 
+/* Security Nag Pill Badge (Phase 4) */
+.saral-pill-badge-nag {
+  background-color: #FEF2F2 !important;
+  color: #DC2626 !important;
+  border: 1px solid #FECACA;
+  font-weight: 700;
+}
+
 .saral-pill-dot {
   width: 6px;
   height: 6px;
@@ -85,6 +93,11 @@
 .saral-pill-dot-indigo {
   background-color: #4F46E5 !important;
   box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.25) !important;
+}
+
+.saral-pill-dot-red {
+  background-color: #EF4444 !important;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25) !important;
 }
 
 .saral-pill-arrow {
@@ -147,6 +160,12 @@
   color: #4F46E5 !important;
   background: #EEF2FF !important;
   border-color: #C7D2FE !important;
+}
+
+.saral-header-tag-red {
+  color: #DC2626 !important;
+  background: #FEF2F2 !important;
+  border-color: #FECACA !important;
 }
 
 .saral-actions-group {
@@ -243,6 +262,98 @@
 
 .saral-btn-manage-inline:hover {
   background: #4338CA;
+}
+
+/* Security Nag Banner (Phase 4) */
+.saral-security-nag-banner {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.saral-nag-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #991B1B;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.saral-nag-msg {
+  font-size: 11px;
+  color: #7F1D1D;
+  line-height: 1.35;
+}
+
+.saral-generator-box {
+  background: #FFFFFF;
+  border: 1px dashed #CBD5E1;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.saral-gen-display-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.saral-gen-pwd-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0F172A;
+  letter-spacing: 0.05em;
+  word-break: break-all;
+  user-select: all;
+}
+
+.saral-btn-refresh-pwd {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #64748B;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+}
+
+.saral-btn-refresh-pwd:hover {
+  color: #0F172A;
+}
+
+.saral-btn-copy-pwd {
+  width: 100%;
+  background: #0F172A;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.saral-btn-copy-pwd:hover {
+  background: #1E293B;
+}
+
+.saral-btn-copy-pwd.copied {
+  background: #10B981 !important;
 }
 
 /* Standalone Subscription Card View */

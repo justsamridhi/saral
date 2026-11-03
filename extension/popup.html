@@ -214,8 +214,8 @@
           </div>
         </div>
 
-        <!-- Card 3: Password Guardian -->
-        <div class="readiness-card">
+        <!-- Card 3: Password Guardian (Interactive Security Hub) -->
+        <div id="card-security" class="readiness-card readiness-card-interactive" role="button" tabindex="0" title="Click to view password health and generator">
           <div class="card-icon-container icon-security">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
@@ -225,9 +225,95 @@
           <div class="card-content">
             <div class="card-title-row">
               <span class="card-title">Password Guardian</span>
-              <span class="card-tag">Phase 4</span>
+              <span id="security-card-badge" class="card-tag">COACH ACTIVE</span>
             </div>
-            <p id="security-metric-text" class="card-metric">Security Coach Active</p>
+            <p id="security-metric-text" class="card-metric">Assessing domain security habits...</p>
+          </div>
+          <div class="card-chevron-container">
+            <svg id="security-chevron" class="card-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+              <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Dropdown Accordion Panel for Password Guardian (Phase 4) -->
+        <div id="security-dropdown-panel" class="accordion-panel" style="display: none;">
+          <div class="accordion-inner">
+            
+            <!-- 1. Security Habit Audit Summary -->
+            <div class="security-audit-block">
+              <div class="audit-score-row">
+                <div class="audit-score-info">
+                  <span class="audit-label">Vault Health Score</span>
+                  <div class="audit-score-display">
+                    <span id="audit-health-score" class="score-number">78</span>
+                    <span class="score-max">/ 100</span>
+                  </div>
+                </div>
+                <div class="audit-tags-group">
+                  <span id="audit-reused-tag" class="audit-chip chip-warning">1 Reused</span>
+                  <span id="audit-stale-tag" class="audit-chip chip-warning">1 >90d Old</span>
+                  <span id="audit-breached-tag" class="audit-chip chip-danger">1 Breached</span>
+                </div>
+              </div>
+              <div class="score-progress-track">
+                <div id="audit-score-bar" class="score-progress-fill" style="width: 78%;"></div>
+              </div>
+            </div>
+
+            <!-- 2. Active Domain Credential Status ("The Nag") -->
+            <div id="domain-credential-box" class="domain-cred-box">
+              <div class="domain-cred-header">
+                <span id="domain-cred-title" class="domain-cred-service">amazon.in Credential</span>
+                <span id="domain-cred-status" class="domain-status-pill pill-danger">NEEDS ROTATION</span>
+              </div>
+              <div class="domain-cred-login-row">
+                <span id="domain-cred-user" class="domain-cred-user">samridhi@kdu.in</span>
+                <span class="domain-cred-pwd">••••••••••••</span>
+              </div>
+              <div id="domain-cred-nag" class="domain-cred-nag-text">
+                ⚠️ Last rotated 114 days ago — Reused on other sites and found in breach dataset!
+              </div>
+            </div>
+
+            <!-- 3. Password Generator Widget -->
+            <div class="generator-widget-block">
+              <div class="gen-widget-header">
+                <span class="gen-title">Generate Strong Password</span>
+                <button type="button" id="btn-refresh-popup-pwd" class="btn-icon-tiny" title="Regenerate password">
+                  <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Output Box -->
+              <div class="gen-output-container">
+                <span id="popup-gen-pwd" class="gen-pwd-display">••••••••••••••••</span>
+                <button type="button" id="btn-copy-popup-gen" class="btn-popup-copy">
+                  <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/>
+                    <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"/>
+                  </svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+
+              <!-- Controls: Length Slider & Symbols -->
+              <div class="gen-controls-row">
+                <div class="gen-slider-group">
+                  <label for="popup-gen-len-slider" class="gen-slider-label">
+                    Length: <strong id="popup-gen-len-val">16</strong>
+                  </label>
+                  <input type="range" id="popup-gen-len-slider" min="8" max="32" value="16" class="gen-slider" />
+                </div>
+                <label class="gen-check-label" for="popup-gen-symbols-check">
+                  <input type="checkbox" id="popup-gen-symbols-check" checked />
+                  <span>Symbols</span>
+                </label>
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -282,7 +368,7 @@
             <span id="footer-ping-text">Connecting...</span>
           </div>
           <span id="footer-env-indicator" class="env-pill">Real API</span>
-          <span class="version-tag">v0.1.0</span>
+          <span class="version-tag">v0.4.0</span>
         </div>
       </footer>
     </section>
@@ -290,6 +376,7 @@
   </div>
 
   <!-- Client Scripts -->
+  <script src="utils/crypto.js"></script>
   <script src="utils/storage.js"></script>
   <script src="utils/api.js"></script>
   <script src="popup.js"></script>

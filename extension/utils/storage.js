@@ -10,7 +10,10 @@
 const STORAGE_KEYS = {
   SESSION_TOKEN: 'saral_session_token',
   USER_PROFILE: 'saral_user_profile',
-  SETTINGS: 'saral_extension_settings'
+  SETTINGS: 'saral_extension_settings',
+  VAULT_RECORDS: 'saral_vault_records',
+  VAULT_SALT: 'saral_vault_salt',
+  SECURITY_AUDIT: 'saral_security_audit'
 };
 
 const DEFAULT_SETTINGS = {
@@ -164,6 +167,76 @@ class SaralStorage {
   static async clearSession() {
     await this.remove(STORAGE_KEYS.SESSION_TOKEN);
     await this.remove(STORAGE_KEYS.USER_PROFILE);
+  }
+
+  /**
+   * Retrieve encrypted or active local vault records
+   * @returns {Promise<Array<object>>}
+   */
+  static async getVaultRecords() {
+    const records = await this.get(STORAGE_KEYS.VAULT_RECORDS);
+    return Array.isArray(records) ? records : [];
+  }
+
+  /**
+   * Save or update a vault credential record
+   * @param {object} record
+   * @returns {Promise<Array<object>>}
+   */
+  static async saveVaultRecord(record) {
+    if (!record || !record.id) return [];
+    const list = await this.getVaultRecords();
+    const index = list.findIndex(r => r.id === record.id);
+    if (index >= 0) {
+      list[index] = { ...list[index], ...record, updatedAt: Date.now() };
+    } else {
+      list.push({ ...record, createdAt: Date.now(), updatedAt: Date.now() });
+    }
+    await this.set(STORAGE_KEYS.VAULT_RECORDS, list);
+    return list;
+  }
+
+  /**
+   * Delete vault record by ID
+   * @param {string} id
+   * @returns {Promise<Array<object>>}
+   */
+  static async deleteVaultRecord(id) {
+    const list = await this.getVaultRecords();
+    const filtered = list.filter(r => r.id !== id);
+    await this.set(STORAGE_KEYS.VAULT_RECORDS, filtered);
+    return filtered;
+  }
+
+  /**
+   * Get or initialize master cryptographic salt
+   * @returns {Promise<string>} Hex representation of 16-byte salt
+   */
+  static async getMasterSalt() {
+    let saltHex = await this.get(STORAGE_KEYS.VAULT_SALT);
+    if (!saltHex) {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+      await this.set(STORAGE_KEYS.VAULT_SALT, saltHex);
+    }
+    return saltHex;
+  }
+
+  /**
+   * Retrieve cached security habit audit summary
+   * @returns {Promise<{healthScore: number, reusedCount: number, staleCount: number, totalPasswords: number}|null>}
+   */
+  static async getSecurityAuditSummary() {
+    return await this.get(STORAGE_KEYS.SECURITY_AUDIT);
+  }
+
+  /**
+   * Persist security habit audit summary
+   * @param {object} summary
+   * @returns {Promise<void>}
+   */
+  static async saveSecurityAuditSummary(summary) {
+    await this.set(STORAGE_KEYS.SECURITY_AUDIT, summary);
   }
 }
 

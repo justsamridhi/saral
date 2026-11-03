@@ -246,6 +246,74 @@ const MOCK_SUBSCRIPTIONS = [
   }
 ];
 
+/**
+ * Phase 4: Mock Saved Vault Credentials & Security Habit Records
+ * Stored metadata flags stale, weak, or reused passwords for "The Nag" habit coach.
+ */
+const MOCK_VAULT_CREDENTIALS = [
+  {
+    id: 'vlt_amz_01',
+    domain: 'amazon.in',
+    domains: ['amazon.in', 'amazon.com'],
+    service: 'Amazon India',
+    username: 'samridhi@kdu.in',
+    maskedPassword: '••••••••••••',
+    lastRotated: Date.now() - 114 * 24 * 60 * 60 * 1000, // 114 days ago
+    ageDays: 114,
+    strength: 'Weak',
+    strengthScore: 1,
+    isReused: true,
+    isBreached: true,
+    breachCount: 412,
+    status: 'BREACH RISK',
+    nagMessage: 'Last rotated 114 days ago — Reused on other accounts and identified in public data breaches! Urgent rotation advised.'
+  },
+  {
+    id: 'vlt_nflx_01',
+    domain: 'netflix.com',
+    domains: ['netflix.com'],
+    service: 'Netflix',
+    username: 'samridhi@kdu.in',
+    maskedPassword: '••••••••••••••••',
+    lastRotated: Date.now() - 32 * 24 * 60 * 60 * 1000, // 32 days ago
+    ageDays: 32,
+    strength: 'Good',
+    strengthScore: 3,
+    isReused: false,
+    isBreached: false,
+    breachCount: 0,
+    status: 'SAFE',
+    nagMessage: 'Clean credential. Rotated 32 days ago. No breach leaks detected.'
+  },
+  {
+    id: 'vlt_cld_01',
+    domain: 'claude.ai',
+    domains: ['claude.ai', 'anthropic.com'],
+    service: 'Anthropic Claude',
+    username: 'samridhi@kdu.in',
+    maskedPassword: '••••••••••••••••••••',
+    lastRotated: Date.now() - 18 * 24 * 60 * 60 * 1000, // 18 days ago
+    ageDays: 18,
+    strength: 'Strong',
+    strengthScore: 4,
+    isReused: false,
+    isBreached: false,
+    breachCount: 0,
+    status: 'SAFE',
+    nagMessage: 'Cryptographically generated with high entropy. Healthy security habit!'
+  }
+];
+
+const MOCK_SECURITY_AUDIT = {
+  healthScore: 78, // out of 100
+  totalPasswords: 3,
+  reusedCount: 1,
+  staleCount: 1, // older than 90 days
+  breachedCount: 1,
+  strongCount: 2,
+  summaryText: '1 credential needs urgent rotation (Amazon.in) due to reuse and age.'
+};
+
 class SaralAPI {
   constructor(apiBase = DEFAULT_API_BASE) {
     this.apiBase = apiBase;
@@ -666,6 +734,106 @@ class SaralAPI {
       if (sub.domain === cleanDomain) return true;
       if (sub.domains && sub.domains.includes(cleanDomain)) return true;
       if (sub.domains && sub.domains.some(d => cleanDomain.endsWith(`.${d}`))) return true;
+      return false;
+    });
+  }
+
+  /**
+   * Phase 4: Fetch vault credentials / security metadata for domain
+   * @param {string} domain
+   * @param {string} [token]
+   * @returns {Promise<Array<object>>}
+   */
+  async fetchVaultCredentials(domain, token) {
+    const cleanDomain = this._cleanDomain(domain);
+    if (!cleanDomain) return [];
+
+    if (this.mockMode) {
+      return this._findMockVaultCredentials(cleanDomain);
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const headers = { 'Accept': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(
+        `${this.apiBase}/api/user/vault?domain=${encodeURIComponent(cleanDomain)}`,
+        { method: 'GET', headers, signal: controller.signal }
+      ).catch(async () => {
+        return await fetch(
+          `${FALLBACK_API_BASE}/api/user/vault?domain=${encodeURIComponent(cleanDomain)}`,
+          { method: 'GET', headers, signal: controller.signal }
+        );
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response && response.ok) {
+        const data = await response.json();
+        const list = Array.isArray(data) ? data : (data.credentials || []);
+        if (list.length > 0) return list;
+      }
+
+      return this._findMockVaultCredentials(cleanDomain);
+    } catch {
+      return this._findMockVaultCredentials(cleanDomain);
+    }
+  }
+
+  /**
+   * Phase 4: Fetch overall security habit audit summary
+   * @param {string} [token]
+   * @returns {Promise<{healthScore: number, totalPasswords: number, reusedCount: number, staleCount: number, breachedCount: number, strongCount: number, summaryText: string}>}
+   */
+  async fetchSecurityAudit(token) {
+    if (this.mockMode) {
+      return MOCK_SECURITY_AUDIT;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const headers = { 'Accept': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(`${this.apiBase}/api/user/security-audit`, {
+        method: 'GET',
+        headers,
+        signal: controller.signal
+      }).catch(async () => {
+        return await fetch(`${FALLBACK_API_BASE}/api/user/security-audit`, {
+          method: 'GET',
+          headers,
+          signal: controller.signal
+        });
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response && response.ok) {
+        const data = await response.json();
+        return data || MOCK_SECURITY_AUDIT;
+      }
+
+      return MOCK_SECURITY_AUDIT;
+    } catch {
+      return MOCK_SECURITY_AUDIT;
+    }
+  }
+
+  /**
+   * Helper: Match domain against mock vault credentials
+   * @private
+   */
+  _findMockVaultCredentials(cleanDomain) {
+    return MOCK_VAULT_CREDENTIALS.filter(c => {
+      if (c.domain === cleanDomain) return true;
+      if (c.domains && c.domains.includes(cleanDomain)) return true;
+      if (c.domains && c.domains.some(d => cleanDomain.endsWith(`.${d}`))) return true;
       return false;
     });
   }
