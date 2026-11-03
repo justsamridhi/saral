@@ -274,3 +274,4 @@ if (typeof window !== 'undefined') {
   window.SaralAPI = SaralAPI;
   window.saralApi = saralApiInstance;
 }
+
