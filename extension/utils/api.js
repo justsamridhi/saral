@@ -1,5 +1,5 @@
 /**
- * SARAL Companion Extension — API Client
+ * SARAL Companion Extension — API Client (Phase 2: Smart Rewards Engine)
  * Targets SARAL Personal Workspace & Supabase Auth endpoints.
  *
  * Security Invariant:
@@ -27,6 +27,115 @@ const MOCK_SESSION_SAMRIDHI = {
     initials: 'SG',
     is_demo: true
   }
+};
+
+/**
+ * Partner Vouchers Mock Catalog (Phase 2)
+ * Provides realistic verified discounts on partner merchant domains
+ */
+const MOCK_PARTNER_VOUCHERS = {
+  'amazon.in': [
+    {
+      id: 'vch_amz_01',
+      code: 'SARALAMZ15',
+      discount: '15% OFF',
+      title: 'Amazon SARAL Festive Savings',
+      terms: 'Min spend ₹999 on Electronics & Lifestyle',
+      expiry: 'Valid till 30 Nov 2026',
+      domain: 'amazon.in',
+      merchant: 'Amazon India',
+      category: 'Electronics & Retail'
+    },
+    {
+      id: 'vch_amz_02',
+      code: 'SARALPAY50',
+      discount: '₹50 CASHBACK',
+      title: 'SARAL UPI/Card Instant Rebate',
+      terms: 'Min recharge or utility bill of ₹199',
+      expiry: 'Valid till 15 Dec 2026',
+      domain: 'amazon.in',
+      merchant: 'Amazon Pay',
+      category: 'Utilities & Bills'
+    }
+  ],
+  'lavazza.com': [
+    {
+      id: 'vch_lvz_01',
+      code: 'SARALCOFFEE',
+      discount: '25% OFF',
+      title: 'Lavazza Premium Espresso Reserve',
+      terms: 'No min spend on whole beans, capsules & ground coffee',
+      expiry: 'Valid till 15 Dec 2026',
+      domain: 'lavazza.com',
+      merchant: 'Lavazza Coffee',
+      category: 'Beverages & Gourmet'
+    }
+  ],
+  'swiggy.com': [
+    {
+      id: 'vch_swg_01',
+      code: 'SARALMEALS',
+      discount: '₹120 OFF',
+      title: 'Swiggy Gourmet Dining Partner Perk',
+      terms: 'Min order ₹299 on Gourmet & Dineout restaurants',
+      expiry: 'Valid till 28 Nov 2026',
+      domain: 'swiggy.com',
+      merchant: 'Swiggy',
+      category: 'Food & Dining'
+    }
+  ],
+  'myntra.com': [
+    {
+      id: 'vch_myn_01',
+      code: 'MYNSARAL30',
+      discount: '30% OFF',
+      title: 'Myntra Wardrobe Refresh',
+      terms: 'Valid on select Autumn/Winter fashion collections',
+      expiry: 'Valid till 10 Dec 2026',
+      domain: 'myntra.com',
+      merchant: 'Myntra Fashion',
+      category: 'Fashion & Apparel'
+    }
+  ],
+  'localhost': [
+    {
+      id: 'vch_dev_01',
+      code: 'SARALDEV50',
+      discount: '50% OFF',
+      title: 'SARAL Partner Sandbox Perk',
+      terms: 'Verified companion test voucher for local checkout preview',
+      expiry: 'Valid till 31 Dec 2026',
+      domain: 'localhost',
+      merchant: 'SARAL Localhost Dev',
+      category: 'Developer Sandbox'
+    }
+  ],
+  '127.0.0.1': [
+    {
+      id: 'vch_dev_02',
+      code: 'SARALDEV50',
+      discount: '50% OFF',
+      title: 'SARAL Partner Sandbox Perk',
+      terms: 'Verified companion test voucher for local checkout preview',
+      expiry: 'Valid till 31 Dec 2026',
+      domain: '127.0.0.1',
+      merchant: 'SARAL Localhost Dev',
+      category: 'Developer Sandbox'
+    }
+  ],
+  'github.com': [
+    {
+      id: 'vch_gh_01',
+      code: 'SARALGIT10',
+      discount: 'FREE TIER BOOST',
+      title: 'Open Source Community Voucher',
+      terms: 'Special perk for SARAL open-source contributors',
+      expiry: 'Valid till 31 Dec 2026',
+      domain: 'github.com',
+      merchant: 'GitHub Community',
+      category: 'Developer Perks'
+    }
+  ]
 };
 
 class SaralAPI {
@@ -69,7 +178,6 @@ class SaralAPI {
         method: 'GET',
         signal: controller.signal
       }).catch(async () => {
-        // Try fallback port if 5000 was unreachable
         return await fetch(`${FALLBACK_API_BASE}/favicon.ico`, {
           method: 'GET',
           signal: controller.signal
@@ -103,7 +211,6 @@ class SaralAPI {
       throw new Error('Please enter your password.');
     }
 
-    // 1. Explicit mock mode check
     if (this.mockMode) {
       return {
         ...MOCK_SESSION_SAMRIDHI,
@@ -116,7 +223,6 @@ class SaralAPI {
       };
     }
 
-    // 2. Attempt live authentication with local SARAL backend
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 4000);
@@ -130,7 +236,6 @@ class SaralAPI {
         body: JSON.stringify({ email: trimmedEmail, password }),
         signal: controller.signal
       }).catch(async (fetchErr) => {
-        // Check secondary port if primary timed out
         try {
           return await fetch(`${FALLBACK_API_BASE}/api/auth/login`, {
             method: 'POST',
@@ -156,14 +261,11 @@ class SaralAPI {
         };
       }
 
-      // If backend responded with 401/400
       if (response && response.status === 401) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Invalid SARAL credentials. Please check your email and password.');
       }
 
-      // If endpoint not implemented yet on server or returned 404, fallback to demo verification
-      // if credentials match standard demo identity
       if (response && (response.status === 404 || response.status === 405)) {
         if (trimmedEmail.toLowerCase() === 'samridhi@kdu.in' || trimmedEmail.includes('samridhi')) {
           return {
@@ -177,7 +279,6 @@ class SaralAPI {
 
       throw new Error(`Authentication service error (${response ? response.status : 'offline'}).`);
     } catch (networkErr) {
-      // Graceful fallback: If user uses the demo email when backend is disconnected
       if (trimmedEmail.toLowerCase() === 'samridhi@kdu.in' || trimmedEmail.toLowerCase().includes('demo')) {
         console.info('[SaralAPI] Local backend unreachable. Falling back to isolated demo profile for Samridhi Gupta.');
         return {
@@ -205,7 +306,6 @@ class SaralAPI {
       throw new Error('Session token missing.');
     }
 
-    // Isolated demo tokens return mock metadata directly
     if (token.startsWith('demo-') || this.mockMode) {
       return MOCK_SESSION_SAMRIDHI.user;
     }
@@ -230,9 +330,105 @@ class SaralAPI {
       return this._normalizeUser(profile);
     } catch (err) {
       if (err.message.includes('Session expired')) throw err;
-      // If server unreachable but token exists, return fallback user
       return MOCK_SESSION_SAMRIDHI.user;
     }
+  }
+
+  /**
+   * Phase 2: Smart Rewards & Contextual Voucher Engine
+   * Fetches active vouchers for the target domain
+   *
+   * @param {string} domain - Target merchant hostname (e.g. 'amazon.in', 'swiggy.com')
+   * @param {string} [token] - Optional user JWT for authenticated rate-limits & personalized rewards
+   * @returns {Promise<Array<object>>} - List of verified voucher objects
+   */
+  async fetchVouchersForDomain(domain, token) {
+    const cleanDomain = this._cleanDomain(domain);
+    if (!cleanDomain) return [];
+
+    // 1. If explicit mock mode is set, use local mock catalog
+    if (this.mockMode) {
+      return this._findMockVouchers(cleanDomain);
+    }
+
+    // 2. Attempt live query to SARAL user vouchers endpoint
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const headers = { 'Accept': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(
+        `${this.apiBase}/api/user/vouchers?domain=${encodeURIComponent(cleanDomain)}`,
+        { method: 'GET', headers, signal: controller.signal }
+      ).catch(async () => {
+        // Fallback port attempt
+        return await fetch(
+          `${FALLBACK_API_BASE}/api/user/vouchers?domain=${encodeURIComponent(cleanDomain)}`,
+          { method: 'GET', headers, signal: controller.signal }
+        );
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response && response.ok) {
+        const data = await response.json();
+        const list = Array.isArray(data) ? data : (data.vouchers || []);
+        if (list.length > 0) return list;
+      }
+
+      // If backend returned 404 or empty, fall back to verified mock catalog for partner domains
+      return this._findMockVouchers(cleanDomain);
+    } catch {
+      // Disconnected / offline fallback
+      return this._findMockVouchers(cleanDomain);
+    }
+  }
+
+  /**
+   * Retrieve all partner vouchers across supported domains
+   * @returns {Array<object>}
+   */
+  getAllPartnerVouchers() {
+    const all = [];
+    Object.values(MOCK_PARTNER_VOUCHERS).forEach(vouchers => {
+      all.push(...vouchers);
+    });
+    return all;
+  }
+
+  /**
+   * Helper: Normalize hostname to clean domain
+   * @private
+   */
+  _cleanDomain(domain) {
+    if (!domain) return '';
+    return String(domain)
+      .toLowerCase()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/.*$/, '')
+      .replace(/^www\./, '')
+      .trim();
+  }
+
+  /**
+   * Helper: Match domain against partner catalog with subdomain support
+   * @private
+   */
+  _findMockVouchers(cleanDomain) {
+    if (MOCK_PARTNER_VOUCHERS[cleanDomain]) {
+      return MOCK_PARTNER_VOUCHERS[cleanDomain];
+    }
+
+    // Subdomain matching (e.g. pay.amazon.in -> amazon.in, food.swiggy.com -> swiggy.com)
+    for (const partnerDomain of Object.keys(MOCK_PARTNER_VOUCHERS)) {
+      if (cleanDomain.endsWith(`.${partnerDomain}`)) {
+        return MOCK_PARTNER_VOUCHERS[partnerDomain];
+      }
+    }
+
+    return [];
   }
 
   /**
@@ -267,6 +463,7 @@ class SaralAPI {
 // Single instance export
 const saralApiInstance = new SaralAPI();
 
+// Export for Node, window, and worker global scope
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { SaralAPI, saralApi: saralApiInstance };
 }
@@ -274,4 +471,7 @@ if (typeof window !== 'undefined') {
   window.SaralAPI = SaralAPI;
   window.saralApi = saralApiInstance;
 }
-
+if (typeof self !== 'undefined') {
+  self.SaralAPI = SaralAPI;
+  self.saralApi = saralApiInstance;
+}

@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
   "name": "SARAL Companion",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Smart shopping rewards, subscription monitor, and password security companion for SARAL.",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "clipboardWrite"
   ],
   "host_permissions": [
     "http://localhost:5000/*",
@@ -14,6 +15,14 @@
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": "icons/icon48.png"
@@ -24,4 +33,3 @@
     "128": "icons/icon128.png"
   }
 }
-

@@ -167,11 +167,14 @@ class SaralStorage {
   }
 }
 
-// Export for ES modules and window object for script tag loading
+// Export for ES modules and window/worker global scope
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = SaralStorage;
 }
 if (typeof window !== 'undefined') {
   window.SaralStorage = SaralStorage;
+}
+if (typeof self !== 'undefined') {
+  self.SaralStorage = SaralStorage;
 }
 

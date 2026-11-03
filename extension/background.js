@@ -1,42 +1,42 @@
 /**
  * SARAL Companion Extension — Background Service Worker (Manifest V3)
- * Handles lifecycle events, tab context tracking, and secure inter-process messaging.
+ * Phase 2: Smart Rewards & Contextual Voucher Engine
+ * Handles lifecycle, tab domain inspection, voucher routing, and badge sync.
  *
  * Security Invariant:
  * Pure client surface. Under NO circumstances should any Supabase service-role
  * keys or payment authorization secrets be held in memory or storage.
  */
 
+// Import storage & API helpers into service worker scope
+importScripts('utils/storage.js', 'utils/api.js');
+
 // Initialize default settings and state on install
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.info('[SARAL Companion] Extension installed/updated:', details.reason);
 
   try {
-    const existing = await chrome.storage.local.get(['saral_extension_settings']);
-    if (!existing.saral_extension_settings) {
-      await chrome.storage.local.set({
-        saral_extension_settings: {
-          vouchersEnabled: true,
-          subscriptionsEnabled: true,
-          passwordAlertEnabled: true,
-          mockMode: false
-        }
+    const existing = await SaralStorage.getSettings();
+    if (!existing) {
+      await SaralStorage.saveSettings({
+        vouchersEnabled: true,
+        subscriptionsEnabled: true,
+        passwordAlertEnabled: true,
+        mockMode: false
       });
-      console.info('[SARAL Companion] Default preferences initialized.');
     }
   } catch (err) {
     console.error('[SARAL Companion] Failed to initialize default storage:', err);
   }
 
-  // Set default inactive badge
-  updateBadge(false);
+  updateGlobalBadge(false);
 });
 
 /**
- * Update the browser action badge status
+ * Update global default badge status
  * @param {boolean} isAuthenticated
  */
-function updateBadge(isAuthenticated) {
+function updateGlobalBadge(isAuthenticated) {
   if (chrome.action) {
     if (isAuthenticated) {
       chrome.action.setBadgeText({ text: 'ON' });
@@ -49,78 +49,182 @@ function updateBadge(isAuthenticated) {
   }
 }
 
+/**
+ * Update tab-specific voucher badge
+ * @param {number} tabId
+ * @param {number} count
+ * @param {boolean} isAuthenticated
+ */
+function updateTabVoucherBadge(tabId, count, isAuthenticated) {
+  if (!chrome.action || !tabId) return;
+
+  if (count > 0) {
+    chrome.action.setBadgeText({ tabId, text: String(count) });
+    chrome.action.setBadgeBackgroundColor({ tabId, color: '#2563EB' }); // Blue
+    chrome.action.setTitle({ tabId, title: `SARAL Companion: ${count} partner voucher(s) available` });
+  } else if (isAuthenticated) {
+    chrome.action.setBadgeText({ tabId, text: 'ON' });
+    chrome.action.setBadgeBackgroundColor({ tabId, color: '#10B981' });
+    chrome.action.setTitle({ tabId, title: 'SARAL Companion (Connected)' });
+  } else {
+    chrome.action.setBadgeText({ tabId, text: '' });
+    chrome.action.setTitle({ tabId, title: 'SARAL Companion (Disconnected)' });
+  }
+}
+
 // Track active tab domain changes for contextual readiness
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     const tab = await chrome.tabs.get(activeInfo.tabId);
     if (tab && tab.url) {
-      handleTabChange(tab.url);
+      await handleTabContext(tab.id, tab.url);
     }
-  } catch (e) {
-    // Suppress tab access errors for internal pages
+  } catch {
+    // Tab closed or inaccessible
   }
 });
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url) {
-    handleTabChange(tab.url);
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab && tab.url) {
+    await handleTabContext(tabId, tab.url);
   }
 });
 
 /**
- * Parse current domain and store minimal context for voucher inspection
+ * Parse domain and update badge + storage
+ * @param {number} tabId
  * @param {string} rawUrl
  */
-function handleTabChange(rawUrl) {
+async function handleTabContext(tabId, rawUrl) {
   try {
     if (!rawUrl || rawUrl.startsWith('chrome://') || rawUrl.startsWith('edge://')) {
       return;
     }
     const url = new URL(rawUrl);
-    const domain = url.hostname.replace(/^www\./, '');
-    // In Phase 2, this will trigger voucher lookup for supported merchants
-    chrome.storage.local.set({ saral_current_domain: domain });
-  } catch {
-    // Non-standard URL format ignored
+    const domain = url.hostname.replace(/^www\./, '').toLowerCase();
+
+    // Cache current active domain
+    await chrome.storage.local.set({ saral_current_domain: domain });
+
+    // Check voucher toggle and auth status
+    const [settings, token] = await Promise.all([
+      SaralStorage.getSettings(),
+      SaralStorage.getToken()
+    ]);
+
+    if (settings && settings.vouchersEnabled) {
+      const vouchers = await saralApi.fetchVouchersForDomain(domain, token);
+      updateTabVoucherBadge(tabId, vouchers.length, Boolean(token));
+    } else {
+      updateTabVoucherBadge(tabId, 0, Boolean(token));
+    }
+  } catch (err) {
+    console.warn('[handleTabContext Error]', err);
   }
 }
 
-// Handle messages from popup or future content scripts
+/**
+ * Central messaging router for popup and content scripts
+ */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message || !message.type) return;
+  if (!message || !message.type) return false;
 
-  switch (message.type) {
-    case 'SARAL_AUTH_STATE_CHANGED':
-      updateBadge(Boolean(message.isAuthenticated));
-      sendResponse({ success: true });
-      break;
+  // 1. Content Script: Check vouchers for domain
+  if (message.type === 'CHECK_SITE_VOUCHERS') {
+    (async () => {
+      try {
+        const domain = (message.domain || '').replace(/^www\./, '').toLowerCase();
+        const [settings, token] = await Promise.all([
+          SaralStorage.getSettings(),
+          SaralStorage.getToken()
+        ]);
 
-    case 'SARAL_GET_ACTIVE_TAB':
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs && tabs[0]) {
-          try {
-            const url = new URL(tabs[0].url);
-            sendResponse({
-              url: tabs[0].url,
-              domain: url.hostname.replace(/^www\./, ''),
-              title: tabs[0].title
-            });
-          } catch {
-            sendResponse({ url: tabs[0].url, domain: 'localhost', title: tabs[0].title });
+        // Respect user's toggle setting
+        if (!settings.vouchersEnabled) {
+          if (sender && sender.tab && sender.tab.id) {
+            updateTabVoucherBadge(sender.tab.id, 0, Boolean(token));
           }
-        } else {
-          sendResponse({ domain: null });
+          sendResponse({ enabled: false, vouchers: [], domain });
+          return;
         }
-      });
-      return true; // Keep message channel open for async query
 
-    case 'SARAL_PING':
-      sendResponse({ status: 'ok', version: '0.1.0', timestamp: Date.now() });
-      break;
+        // Fetch vouchers through API client
+        const vouchers = await saralApi.fetchVouchersForDomain(domain, token);
 
-    default:
-      sendResponse({ unknown: true });
-      break;
+        // Update badge for this tab
+        if (sender && sender.tab && sender.tab.id) {
+          updateTabVoucherBadge(sender.tab.id, vouchers.length, Boolean(token));
+        }
+
+        sendResponse({
+          enabled: true,
+          vouchers: vouchers || [],
+          domain,
+          isAuthenticated: Boolean(token)
+        });
+      } catch (err) {
+        console.error('[CHECK_SITE_VOUCHERS Error]', err);
+        sendResponse({ enabled: false, vouchers: [], error: err.message });
+      }
+    })();
+    return true; // Keep message channel open for async response
   }
-});
 
+  // 2. Popup: Query vouchers for current domain
+  if (message.type === 'GET_DOMAIN_VOUCHERS') {
+    (async () => {
+      try {
+        const domain = (message.domain || '').replace(/^www\./, '').toLowerCase();
+        const token = await SaralStorage.getToken();
+        const vouchers = await saralApi.fetchVouchersForDomain(domain, token);
+        sendResponse({ vouchers: vouchers || [], domain });
+      } catch (err) {
+        sendResponse({ vouchers: [], error: err.message });
+      }
+    })();
+    return true;
+  }
+
+  // 3. Popup: Fetch all partner vouchers
+  if (message.type === 'GET_ALL_PARTNER_VOUCHERS') {
+    const all = saralApi.getAllPartnerVouchers();
+    sendResponse({ vouchers: all });
+    return false;
+  }
+
+  // 4. Auth State Changed
+  if (message.type === 'SARAL_AUTH_STATE_CHANGED') {
+    updateGlobalBadge(Boolean(message.isAuthenticated));
+    sendResponse({ success: true });
+    return false;
+  }
+
+  // 5. Query active tab domain
+  if (message.type === 'SARAL_GET_ACTIVE_TAB') {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs && tabs[0]) {
+        try {
+          const url = new URL(tabs[0].url);
+          sendResponse({
+            url: tabs[0].url,
+            domain: url.hostname.replace(/^www\./, '').toLowerCase(),
+            title: tabs[0].title
+          });
+        } catch {
+          sendResponse({ url: tabs[0].url, domain: 'localhost', title: tabs[0].title });
+        }
+      } else {
+        sendResponse({ domain: null });
+      }
+    });
+    return true;
+  }
+
+  // 6. Ping check
+  if (message.type === 'SARAL_PING') {
+    sendResponse({ status: 'ok', version: '0.2.0', timestamp: Date.now() });
+    return false;
+  }
+
+  return false;
+});
