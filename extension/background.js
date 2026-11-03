@@ -365,9 +365,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // 11. Ping check
+  // 11. Merchant Card Footprint Check (Phase 5)
+  if (message.type === 'CHECK_MERCHANT_CARD_FOOTPRINT') {
+    (async () => {
+      try {
+        const domain = (message.domain || '').replace(/^www\./, '').toLowerCase();
+        const token = await SaralStorage.getToken();
+        const footprint = await saralApi.fetchMerchantCardFootprint(domain, token);
+        sendResponse({ footprint: footprint || [], domain });
+      } catch (err) {
+        sendResponse({ footprint: [], error: err.message });
+      }
+    })();
+    return true;
+  }
+
+  // 12. Privacy Controls: Clear Local Cache (Phase 5)
+  if (message.type === 'CLEAR_LOCAL_CACHE') {
+    (async () => {
+      await SaralStorage.clearLocalCache();
+      breachLookupCache.clear();
+      sendResponse({ success: true });
+    })();
+    return true;
+  }
+
+  // 13. Privacy Controls: Purge Vault & Master Key (Phase 5)
+  if (message.type === 'PURGE_LOCAL_VAULT') {
+    (async () => {
+      await SaralStorage.purgeVaultAndKeys();
+      breachLookupCache.clear();
+      sendResponse({ success: true });
+    })();
+    return true;
+  }
+
+  // 14. Ping check
   if (message.type === 'SARAL_PING') {
-    sendResponse({ status: 'ok', version: '0.4.0', timestamp: Date.now() });
+    sendResponse({ status: 'ok', version: '1.0.0', timestamp: Date.now() });
     return false;
   }
 

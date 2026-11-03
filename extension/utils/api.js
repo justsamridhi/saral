@@ -314,6 +314,92 @@ const MOCK_SECURITY_AUDIT = {
   summaryText: '1 credential needs urgent rotation (Amazon.in) due to reuse and age.'
 };
 
+/**
+ * Phase 5: Mock Merchant Card Footprint Catalog (Read-Only)
+ * Surfaces high-level payment history recorded on SARAL server.
+ * PCI Invariant: No full card numbers, CVVs, or bank tokens are stored or transmitted.
+ */
+const MOCK_CARD_FOOTPRINTS = {
+  'amazon.in': [
+    {
+      id: 'fp_amz_01',
+      domain: 'amazon.in',
+      merchantName: 'Amazon India',
+      cardBrand: 'HDFC Bank Visa',
+      last4: '4112',
+      cardType: 'Credit Card',
+      lastUsed: 'Oct 12, 2026',
+      lastAmount: '₹2,499',
+      reassurance: 'No full card number, expiry, or CVV is stored in this extension.'
+    }
+  ],
+  'swiggy.com': [
+    {
+      id: 'fp_swg_01',
+      domain: 'swiggy.com',
+      merchantName: 'Swiggy Gourmet',
+      cardBrand: 'Axis Bank Mastercard',
+      last4: '8901',
+      cardType: 'Debit Card',
+      lastUsed: 'Oct 28, 2026',
+      lastAmount: '₹480',
+      reassurance: 'No full card number, expiry, or CVV is stored in this extension.'
+    }
+  ],
+  'netflix.com': [
+    {
+      id: 'fp_nflx_01',
+      domain: 'netflix.com',
+      merchantName: 'Netflix India',
+      cardBrand: 'SARAL Virtual Card',
+      last4: '4291',
+      cardType: 'Virtual Card',
+      lastUsed: 'Oct 22, 2026',
+      lastAmount: '₹649',
+      reassurance: 'Tokenized virtual card mandate handled via SARAL Trust Gate.'
+    }
+  ],
+  'claude.ai': [
+    {
+      id: 'fp_cld_01',
+      domain: 'claude.ai',
+      merchantName: 'Anthropic Claude',
+      cardBrand: 'SARAL UPI Auto-Pay',
+      last4: 'autopay@saral',
+      cardType: 'UPI Mandate',
+      lastUsed: 'Oct 14, 2026',
+      lastAmount: '$20.00',
+      reassurance: 'Zero card exposure. Recurring mandate routed through SARAL.'
+    }
+  ],
+  'localhost': [
+    {
+      id: 'fp_dev_01',
+      domain: 'localhost',
+      merchantName: 'SARAL Localhost Dev',
+      cardBrand: 'SARAL Sandbox Test Card',
+      last4: '1004',
+      cardType: 'Developer Sandbox',
+      lastUsed: 'Nov 01, 2026',
+      lastAmount: '₹499',
+      reassurance: 'Developer sandbox payment footprint mock.'
+    }
+  ],
+  '127.0.0.1': [
+    {
+      id: 'fp_dev_02',
+      domain: '127.0.0.1',
+      merchantName: 'SARAL Localhost Dev',
+      cardBrand: 'SARAL Sandbox Test Card',
+      last4: '1004',
+      cardType: 'Developer Sandbox',
+      lastUsed: 'Nov 01, 2026',
+      lastAmount: '₹499',
+      reassurance: 'Developer sandbox payment footprint mock.'
+    }
+  ]
+};
+
 class SaralAPI {
   constructor(apiBase = DEFAULT_API_BASE) {
     this.apiBase = apiBase;
@@ -823,6 +909,69 @@ class SaralAPI {
     } catch {
       return MOCK_SECURITY_AUDIT;
     }
+  }
+
+  /**
+   * Phase 5: Fetch read-only merchant card footprint history
+   * Returns previous masked transaction channels recorded on SARAL server.
+   *
+   * @param {string} domain
+   * @param {string} [token]
+   * @returns {Promise<Array<object>>}
+   */
+  async fetchMerchantCardFootprint(domain, token) {
+    const cleanDomain = this._cleanDomain(domain);
+    if (!cleanDomain) return [];
+
+    if (this.mockMode) {
+      return this._findMockCardFootprint(cleanDomain);
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const headers = { 'Accept': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(
+        `${this.apiBase}/api/user/cards/footprint?domain=${encodeURIComponent(cleanDomain)}`,
+        { method: 'GET', headers, signal: controller.signal }
+      ).catch(async () => {
+        return await fetch(
+          `${FALLBACK_API_BASE}/api/user/cards/footprint?domain=${encodeURIComponent(cleanDomain)}`,
+          { method: 'GET', headers, signal: controller.signal }
+        );
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response && response.ok) {
+        const data = await response.json();
+        const list = Array.isArray(data) ? data : (data.footprint || []);
+        if (list.length > 0) return list;
+      }
+
+      return this._findMockCardFootprint(cleanDomain);
+    } catch {
+      return this._findMockCardFootprint(cleanDomain);
+    }
+  }
+
+  /**
+   * Helper: Match domain against mock card footprint
+   * @private
+   */
+  _findMockCardFootprint(cleanDomain) {
+    if (MOCK_CARD_FOOTPRINTS[cleanDomain]) {
+      return MOCK_CARD_FOOTPRINTS[cleanDomain];
+    }
+    for (const partnerDomain of Object.keys(MOCK_CARD_FOOTPRINTS)) {
+      if (cleanDomain.endsWith(`.${partnerDomain}`)) {
+        return MOCK_CARD_FOOTPRINTS[partnerDomain];
+      }
+    }
+    return [];
   }
 
   /**

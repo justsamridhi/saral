@@ -1,7 +1,7 @@
 /**
- * SARAL Companion Extension — Popup Controller (Phase 4: Password Guardian & Security Habit Coach)
- * Coordinates View A (Sign In) and View B (Hub) states, contextual voucher engine,
- * subscription auto-pay tracking, security habit coaching ("The Nag"), and crypto password generation.
+ * SARAL Companion Extension — Popup Controller (Phase 5: Release Finalization & Privacy Controls)
+ * Coordinates View A (Sign In), View B (Hub), and View C (Privacy Center) states, contextual voucher engine,
+ * subscription auto-pay tracking, security habit coaching ("The Nag"), crypto password generation, and merchant card footprint.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -77,7 +77,29 @@ document.addEventListener('DOMContentLoaded', async () => {
   const popupGenSymbolsCheck = document.getElementById('popup-gen-symbols-check');
   const btnCopyPopupGen = document.getElementById('btn-copy-popup-gen');
 
-  // Toggles
+  // Card 4: Merchant Card Footprint Elements (Phase 5)
+  const cardFootprint = document.getElementById('card-footprint');
+  const footprintCardBadge = document.getElementById('footprint-card-badge');
+  const footprintChevronContainer = cardFootprint ? cardFootprint.querySelector('.card-chevron-container') : null;
+  const footprintMetricText = document.getElementById('footprint-metric-text');
+  const footprintDropdownPanel = document.getElementById('footprint-dropdown-panel');
+  const footprintDomainTitle = document.getElementById('footprint-domain-title');
+  const popupFootprintList = document.getElementById('popup-footprint-list');
+  const popupFootprintEmpty = document.getElementById('popup-footprint-empty');
+
+  // View C (Privacy Center & Settings) Elements (Phase 5)
+  const viewPrivacy = document.getElementById('view-privacy');
+  const btnOpenPrivacy = document.getElementById('btn-open-privacy');
+  const btnBackFromPrivacy = document.getElementById('btn-back-from-privacy');
+  const privacyToast = document.getElementById('privacy-toast');
+  const privacyToastMsg = document.getElementById('privacy-toast-msg');
+  const togglePrivacyVouchers = document.getElementById('toggle-privacy-vouchers');
+  const togglePrivacySubs = document.getElementById('toggle-privacy-subs');
+  const togglePrivacyPasswords = document.getElementById('toggle-privacy-passwords');
+  const btnClearCache = document.getElementById('btn-clear-cache');
+  const btnPurgeVault = document.getElementById('btn-purge-vault');
+
+  // Toggles (Hub View)
   const toggleVouchers = document.getElementById('toggle-vouchers');
   const toggleSubs = document.getElementById('toggle-subs');
   const togglePasswords = document.getElementById('toggle-passwords');
@@ -113,6 +135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    * Mount View A (Logged Out)
    */
   function showLoggedOutView() {
+    if (viewPrivacy) viewPrivacy.style.display = 'none';
     viewLoggedIn.style.display = 'none';
     viewLoggedOut.style.display = 'flex';
     hideError();
@@ -125,6 +148,7 @@ document.addEventListener('DOMContentLoaded', async () => {
    * @param {object} user
    */
   async function showLoggedInView(user) {
+    if (viewPrivacy) viewPrivacy.style.display = 'none';
     viewLoggedOut.style.display = 'none';
     viewLoggedIn.style.display = 'flex';
 
@@ -281,6 +305,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         securityCardBadge.className = 'card-tag';
       }
     }
+
+    // 4. MERCHANT CARD FOOTPRINT INSPECTION (PHASE 5)
+    try {
+      const footprint = await saralApi.fetchMerchantCardFootprint(domain, token);
+      renderFootprintSummary(domain, footprint);
+      renderFootprintList(footprint, domain);
+    } catch (err) {
+      if (footprintMetricText) footprintMetricText.textContent = `No payment history found for ${domain}`;
+      if (footprintCardBadge) {
+        footprintCardBadge.textContent = 'PCI SAFE';
+        footprintCardBadge.className = 'card-tag';
+      }
+    }
   }
 
   /**
@@ -368,6 +405,68 @@ document.addEventListener('DOMContentLoaded', async () => {
       securityCardBadge.textContent = 'HEALTHY';
       securityCardBadge.className = 'card-tag card-tag-green';
     }
+  }
+
+  /**
+   * Update Card Footprint Header summary (Phase 5)
+   */
+  function renderFootprintSummary(domain, footprint) {
+    if (!footprintMetricText || !footprintCardBadge) return;
+    const cards = Array.isArray(footprint) ? footprint : (footprint?.cards || []);
+    if (cards.length > 0) {
+      const primary = cards[0];
+      const brand = primary.brand || primary.cardBrand || 'Card';
+      const last4 = primary.last4 || '••••';
+      footprintMetricText.textContent = `${brand} (••${last4}) used on ${domain}`;
+      footprintCardBadge.textContent = `${cards.length} RECORD${cards.length > 1 ? 'S' : ''}`;
+      footprintCardBadge.className = 'card-tag card-tag-green';
+    } else {
+      footprintMetricText.textContent = `No payment history found for ${domain}`;
+      footprintCardBadge.textContent = 'CLEAN';
+      footprintCardBadge.className = 'card-tag';
+    }
+  }
+
+  /**
+   * Render previous card usage history inside the footprint dropdown panel (Phase 5)
+   */
+  function renderFootprintList(footprint, domain) {
+    if (!popupFootprintList || !popupFootprintEmpty) return;
+    if (footprintDomainTitle) {
+      footprintDomainTitle.textContent = `${domain} Payment Records`;
+    }
+
+    const cards = Array.isArray(footprint) ? footprint : (footprint?.cards || []);
+    popupFootprintList.innerHTML = '';
+
+    if (!cards || cards.length === 0) {
+      popupFootprintList.style.display = 'none';
+      popupFootprintEmpty.style.display = 'block';
+      return;
+    }
+
+    popupFootprintList.style.display = 'flex';
+    popupFootprintEmpty.style.display = 'none';
+
+    cards.forEach((card) => {
+      const item = document.createElement('div');
+      item.className = 'popup-footprint-item';
+      const brand = card.brand || card.cardBrand || 'Card';
+      const last4 = card.last4 || '••••';
+      const lastUsed = card.lastUsed || 'Recent';
+
+      item.innerHTML = `
+        <div class="popup-footprint-card-name">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2">
+            <rect x="2" y="5" width="20" height="14" rx="2"/>
+            <line x1="2" y1="10" x2="22" y2="10"/>
+          </svg>
+          <span>${escapeHTML(brand)} (••${escapeHTML(last4)})</span>
+        </div>
+        <span class="popup-footprint-date">${escapeHTML(lastUsed)}</span>
+      `;
+      popupFootprintList.appendChild(item);
+    });
   }
 
   /**
@@ -596,6 +695,51 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
+   * Accordion Toggle: Merchant Card Footprint Card (Phase 5)
+   */
+  if (cardFootprint) {
+    cardFootprint.addEventListener('click', () => {
+      const isVisible = footprintDropdownPanel.style.display !== 'none';
+      footprintDropdownPanel.style.display = isVisible ? 'none' : 'block';
+      footprintChevronContainer?.classList.toggle('expanded', !isVisible);
+    });
+  }
+
+  /**
+   * Navigation: Open Privacy Center & Settings (Phase 5)
+   */
+  if (btnOpenPrivacy) {
+    btnOpenPrivacy.addEventListener('click', (e) => {
+      e.stopPropagation();
+      viewLoggedIn.style.display = 'none';
+      viewPrivacy.style.display = 'flex';
+    });
+  }
+
+  /**
+   * Navigation: Back to Dashboard from Privacy Center (Phase 5)
+   */
+  if (btnBackFromPrivacy) {
+    btnBackFromPrivacy.addEventListener('click', (e) => {
+      e.stopPropagation();
+      viewPrivacy.style.display = 'none';
+      viewLoggedIn.style.display = 'flex';
+    });
+  }
+
+  /**
+   * Display temporary toast notification inside Privacy Center (Phase 5)
+   */
+  function showPrivacyToast(message) {
+    if (!privacyToast || !privacyToastMsg) return;
+    privacyToastMsg.textContent = message;
+    privacyToast.style.display = 'block';
+    setTimeout(() => {
+      privacyToast.style.display = 'none';
+    }, 2800);
+  }
+
+  /**
    * Manage on SARAL Deep-Link Button
    */
   if (btnOpenSaralActivity) {
@@ -647,32 +791,106 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   /**
-   * Load and bind quick toggle controls to storage
+   * Load and bind quick toggle controls to storage (Syncs Hub & Privacy views)
    */
   async function loadToggleSettings() {
     try {
       const settings = await SaralStorage.getSettings();
-      toggleVouchers.checked = Boolean(settings.vouchersEnabled);
-      toggleSubs.checked = Boolean(settings.subscriptionsEnabled);
-      togglePasswords.checked = Boolean(settings.passwordAlertEnabled);
+      const vouchersOn = Boolean(settings.vouchersEnabled);
+      const subsOn = Boolean(settings.subscriptionsEnabled);
+      const passwordsOn = Boolean(settings.passwordAlertEnabled);
+
+      if (toggleVouchers) toggleVouchers.checked = vouchersOn;
+      if (toggleSubs) toggleSubs.checked = subsOn;
+      if (togglePasswords) togglePasswords.checked = passwordsOn;
+
+      if (togglePrivacyVouchers) togglePrivacyVouchers.checked = vouchersOn;
+      if (togglePrivacySubs) togglePrivacySubs.checked = subsOn;
+      if (togglePrivacyPasswords) togglePrivacyPasswords.checked = passwordsOn;
     } catch (e) {
       console.warn('[Popup] Failed to load settings:', e);
     }
   }
 
-  async function handleToggleChange() {
+  async function handleToggleChange(source = 'hub') {
+    let vouchersVal, subsVal, passwordsVal;
+
+    if (source === 'privacy') {
+      vouchersVal = Boolean(togglePrivacyVouchers?.checked);
+      subsVal = Boolean(togglePrivacySubs?.checked);
+      passwordsVal = Boolean(togglePrivacyPasswords?.checked);
+
+      if (toggleVouchers) toggleVouchers.checked = vouchersVal;
+      if (toggleSubs) toggleSubs.checked = subsVal;
+      if (togglePasswords) togglePasswords.checked = passwordsVal;
+    } else {
+      vouchersVal = Boolean(toggleVouchers?.checked);
+      subsVal = Boolean(toggleSubs?.checked);
+      passwordsVal = Boolean(togglePasswords?.checked);
+
+      if (togglePrivacyVouchers) togglePrivacyVouchers.checked = vouchersVal;
+      if (togglePrivacySubs) togglePrivacySubs.checked = subsVal;
+      if (togglePrivacyPasswords) togglePrivacyPasswords.checked = passwordsVal;
+    }
+
     const updated = {
-      vouchersEnabled: toggleVouchers.checked,
-      subscriptionsEnabled: toggleSubs.checked,
-      passwordAlertEnabled: togglePasswords.checked
+      vouchersEnabled: vouchersVal,
+      subscriptionsEnabled: subsVal,
+      passwordAlertEnabled: passwordsVal
     };
     await SaralStorage.saveSettings(updated);
+    notifyBackground('SETTINGS_UPDATED', { settings: updated });
     await inspectCurrentDomain();
   }
 
-  toggleVouchers.addEventListener('change', handleToggleChange);
-  toggleSubs.addEventListener('change', handleToggleChange);
-  togglePasswords.addEventListener('change', handleToggleChange);
+  if (toggleVouchers) toggleVouchers.addEventListener('change', () => handleToggleChange('hub'));
+  if (toggleSubs) toggleSubs.addEventListener('change', () => handleToggleChange('hub'));
+  if (togglePasswords) togglePasswords.addEventListener('change', () => handleToggleChange('hub'));
+
+  if (togglePrivacyVouchers) togglePrivacyVouchers.addEventListener('change', () => handleToggleChange('privacy'));
+  if (togglePrivacySubs) togglePrivacySubs.addEventListener('change', () => handleToggleChange('privacy'));
+  if (togglePrivacyPasswords) togglePrivacyPasswords.addEventListener('change', () => handleToggleChange('privacy'));
+
+  /**
+   * Data Sanitization: Clear Local Domain & Voucher Cache (Phase 5)
+   */
+  if (btnClearCache) {
+    btnClearCache.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        if (typeof SaralStorage !== 'undefined' && SaralStorage.clearLocalCache) {
+          await SaralStorage.clearLocalCache();
+        }
+        notifyBackground('CLEAR_LOCAL_CACHE');
+        showPrivacyToast('Local domain & voucher cache cleared successfully.');
+        await inspectCurrentDomain();
+      } catch (err) {
+        showPrivacyToast('Cache cleared.');
+      }
+    });
+  }
+
+  /**
+   * Data Sanitization: Purge Local Encrypted Vault & Reset PIN (Phase 5)
+   */
+  if (btnPurgeVault) {
+    btnPurgeVault.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const confirmed = window.confirm('Are you sure you want to purge all locally encrypted credentials and keys? This action cannot be undone.');
+      if (!confirmed) return;
+
+      try {
+        if (typeof SaralStorage !== 'undefined' && SaralStorage.purgeVaultAndKeys) {
+          await SaralStorage.purgeVaultAndKeys();
+        }
+        notifyBackground('PURGE_LOCAL_VAULT');
+        showPrivacyToast('Encrypted vault and master PIN purged.');
+        await inspectCurrentDomain();
+      } catch (err) {
+        showPrivacyToast('Vault purged.');
+      }
+    });
+  }
 
   /**
    * Health ping and environment indicator

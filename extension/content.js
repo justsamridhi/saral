@@ -32,6 +32,7 @@
     vouchers: [],
     subscriptions: [],
     security: { enabled: true, hasNag: false, nagMessage: null, credentials: [] },
+    footprint: [],
     domain: cleanDomain,
     livePasswordNag: null // Set if user types weak/breached password
   };
@@ -45,7 +46,7 @@
     }
 
     try {
-      const [voucherRes, subRes, secRes] = await Promise.all([
+      const [voucherRes, subRes, secRes, fpRes] = await Promise.all([
         new Promise((resolve) => {
           chrome.runtime.sendMessage(
             { type: 'CHECK_SITE_VOUCHERS', domain: cleanDomain },
@@ -63,6 +64,12 @@
             { type: 'CHECK_DOMAIN_SECURITY', domain: cleanDomain },
             (res) => resolve(chrome.runtime.lastError ? null : res)
           );
+        }),
+        new Promise((resolve) => {
+          chrome.runtime.sendMessage(
+            { type: 'CHECK_MERCHANT_CARD_FOOTPRINT', domain: cleanDomain },
+            (res) => resolve(chrome.runtime.lastError ? null : res)
+          );
         })
       ]);
 
@@ -77,6 +84,10 @@
       currentContext.security = (secRes && secRes.enabled)
         ? secRes
         : { enabled: false, hasNag: false, nagMessage: null, credentials: [] };
+
+      currentContext.footprint = (fpRes && Array.isArray(fpRes.footprint))
+        ? fpRes.footprint
+        : [];
 
       if (
         currentContext.vouchers.length > 0 ||
@@ -362,6 +373,28 @@
 
             body.appendChild(item);
           });
+        }
+
+        // 4. Merchant Card Footprint (Phase 5)
+        if (currentContext.footprint && currentContext.footprint.length > 0) {
+          const fp = currentContext.footprint[0];
+          const fpBanner = document.createElement('div');
+          fpBanner.className = 'saral-card-footprint-banner';
+          fpBanner.innerHTML = `
+            <div class="saral-footprint-header">
+              <svg width="12" height="12" viewBox="0 0 20 20" fill="#4F46E5">
+                <path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clip-rule="evenodd"/>
+              </svg>
+              <span>SARAL Card Footprint</span>
+            </div>
+            <div class="saral-footprint-text">
+              You previously paid with <strong>${escapeHTML(fp.cardBrand)} (••${escapeHTML(fp.last4)})</strong> on this merchant (${escapeHTML(fp.lastUsed)}).
+            </div>
+            <div class="saral-footprint-reassurance">
+              No card numbers or CVVs are stored in this browser extension.
+            </div>
+          `;
+          body.appendChild(fpBanner);
         }
 
         card.appendChild(body);

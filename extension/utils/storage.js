@@ -238,6 +238,26 @@ class SaralStorage {
   static async saveSecurityAuditSummary(summary) {
     await this.set(STORAGE_KEYS.SECURITY_AUDIT, summary);
   }
+
+  /**
+   * Phase 5: Clear local caches and cached domain context
+   * Preserves session credentials and master key.
+   * @returns {Promise<void>}
+   */
+  static async clearLocalCache() {
+    await this.remove(STORAGE_KEYS.SECURITY_AUDIT);
+    await this.remove('saral_current_domain');
+  }
+
+  /**
+   * Phase 5: Complete purge of local encrypted vault records and derived keys
+   * @returns {Promise<void>}
+   */
+  static async purgeVaultAndKeys() {
+    await this.remove(STORAGE_KEYS.VAULT_RECORDS);
+    await this.remove(STORAGE_KEYS.VAULT_SALT);
+    await this.remove(STORAGE_KEYS.SECURITY_AUDIT);
+  }
 }
 
 // Export for ES modules and window/worker global scope
