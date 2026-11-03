@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Local Supabase credentials
+supabase-config.js
+!supabase-config.example.js
+
+# Build output
+dist/
+coverage/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

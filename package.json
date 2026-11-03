@@ -1,0 +1,30 @@
+{
+  "name": "saral-ecosystem",
+  "version": "1.0.0",
+  "description": "SARAL — AI-Powered Digital Services Ecosystem with PayPal Trust Gate",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test-payments.js && node test-milestone2.js && node test-multiuser-ownership.js",
+    "test:milestone2": "node test-milestone2.js",
+    "test:multiuser": "node test-multiuser-ownership.js"
+  },
+  "keywords": [
+    "saral",
+    "paypal",
+    "trust-gate",
+    "supabase",
+    "agentic-commerce",
+    "ai"
+  ],
+  "author": "SARAL Architecture Team",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
+
