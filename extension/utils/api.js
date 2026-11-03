@@ -1,10 +1,10 @@
 /**
- * SARAL Companion Extension — API Client (Phase 2: Smart Rewards Engine)
- * Targets SARAL Personal Workspace & Supabase Auth endpoints.
+ * SARAL Companion Extension — API Client (Phase 3: Active Subscription & Auto-Pay Tracker)
+ * Targets SARAL Personal Workspace, Supabase Auth & Consumer Modules.
  *
- * Security Invariant:
+ * Security Invariants:
  * Pure client surface. Under NO circumstances should any Supabase service-role
- * keys or payment authorization secrets be included in this file.
+ * keys, payment card secrets, CVVs, or bank authorization tokens be handled here.
  */
 
 // Toggleable mock fallback switch (defaulting to live local backend)
@@ -31,7 +31,6 @@ const MOCK_SESSION_SAMRIDHI = {
 
 /**
  * Partner Vouchers Mock Catalog (Phase 2)
- * Provides realistic verified discounts on partner merchant domains
  */
 const MOCK_PARTNER_VOUCHERS = {
   'amazon.in': [
@@ -138,6 +137,115 @@ const MOCK_PARTNER_VOUCHERS = {
   ]
 };
 
+/**
+ * Active Subscriptions & Mandates Mock Catalog (Phase 3)
+ * Surfacing recurring auto-pay commitments authorized via SARAL Personal Workspace
+ */
+const MOCK_SUBSCRIPTIONS = [
+  {
+    id: 'sub_cld_01',
+    service: 'Anthropic Claude Pro',
+    plan: 'Pro Subscription',
+    amount: '$20.00',
+    amountInr: 1680,
+    currency: 'USD',
+    frequency: 'month',
+    renewalDate: 'Nov 14, 2026',
+    daysUntilRenewal: 10,
+    autoPayStatus: 'Active',
+    autoPayMethod: 'SARAL UPI (autopay@saral)',
+    domain: 'claude.ai',
+    domains: ['claude.ai', 'anthropic.com'],
+    category: 'AI & Productivity',
+    isImminent: true
+  },
+  {
+    id: 'sub_nflx_01',
+    service: 'Netflix Premium',
+    plan: 'Premium 4K + HDR',
+    amount: '₹649',
+    amountInr: 649,
+    currency: 'INR',
+    frequency: 'month',
+    renewalDate: 'Nov 22, 2026',
+    daysUntilRenewal: 18,
+    autoPayStatus: 'Active',
+    autoPayMethod: 'SARAL Virtual Card (•• 4291)',
+    domain: 'netflix.com',
+    domains: ['netflix.com'],
+    category: 'Streaming & Video',
+    isImminent: false
+  },
+  {
+    id: 'sub_sptf_01',
+    service: 'Spotify Individual',
+    plan: 'Premium Individual',
+    amount: '₹119',
+    amountInr: 119,
+    currency: 'INR',
+    frequency: 'month',
+    renewalDate: 'Nov 18, 2026',
+    daysUntilRenewal: 14,
+    autoPayStatus: 'Active',
+    autoPayMethod: 'SARAL Wallet Auto-Debit',
+    domain: 'spotify.com',
+    domains: ['spotify.com'],
+    category: 'Music & Audio',
+    isImminent: false
+  },
+  {
+    id: 'sub_gpt_01',
+    service: 'ChatGPT Plus',
+    plan: 'Plus Subscription',
+    amount: '$20.00',
+    amountInr: 1680,
+    currency: 'USD',
+    frequency: 'month',
+    renewalDate: 'Nov 29, 2026',
+    daysUntilRenewal: 25,
+    autoPayStatus: 'Active',
+    autoPayMethod: 'SARAL Virtual Card (•• 8814)',
+    domain: 'chatgpt.com',
+    domains: ['chatgpt.com', 'openai.com'],
+    category: 'AI & Productivity',
+    isImminent: false
+  },
+  {
+    id: 'sub_amz_01',
+    service: 'Amazon Prime Annual',
+    plan: 'Prime 1-Year Membership',
+    amount: '₹1,499',
+    amountInr: 125, // amortized monthly INR
+    currency: 'INR',
+    frequency: 'year',
+    renewalDate: 'Jan 05, 2027',
+    daysUntilRenewal: 62,
+    autoPayStatus: 'Active',
+    autoPayMethod: 'SARAL UPI Mandate (annual-mandate@upi)',
+    domain: 'amazon.in',
+    domains: ['amazon.in', 'amazon.com'],
+    category: 'Delivery & Video',
+    isImminent: false
+  },
+  {
+    id: 'sub_dev_01',
+    service: 'SARAL Developer Cloud',
+    plan: 'Sandbox Pro Tier',
+    amount: '₹499',
+    amountInr: 499,
+    currency: 'INR',
+    frequency: 'month',
+    renewalDate: 'Nov 30, 2026',
+    daysUntilRenewal: 26,
+    autoPayStatus: 'Active',
+    autoPayMethod: 'SARAL Sandbox Vault',
+    domain: 'localhost',
+    domains: ['localhost', '127.0.0.1'],
+    category: 'Developer Sandbox',
+    isImminent: false
+  }
+];
+
 class SaralAPI {
   constructor(apiBase = DEFAULT_API_BASE) {
     this.apiBase = apiBase;
@@ -158,6 +266,14 @@ class SaralAPI {
    */
   setMockMode(enabled) {
     this.mockMode = Boolean(enabled);
+  }
+
+  /**
+   * Safe deep-link URL to SARAL dashboard Activity / Subscriptions view
+   * @returns {string}
+   */
+  getDashboardActivityUrl() {
+    return `${this.apiBase}/saral.html#activity`;
   }
 
   /**
@@ -335,23 +451,19 @@ class SaralAPI {
   }
 
   /**
-   * Phase 2: Smart Rewards & Contextual Voucher Engine
-   * Fetches active vouchers for the target domain
-   *
-   * @param {string} domain - Target merchant hostname (e.g. 'amazon.in', 'swiggy.com')
-   * @param {string} [token] - Optional user JWT for authenticated rate-limits & personalized rewards
-   * @returns {Promise<Array<object>>} - List of verified voucher objects
+   * Phase 2: Fetch verified vouchers for target domain
+   * @param {string} domain
+   * @param {string} [token]
+   * @returns {Promise<Array<object>>}
    */
   async fetchVouchersForDomain(domain, token) {
     const cleanDomain = this._cleanDomain(domain);
     if (!cleanDomain) return [];
 
-    // 1. If explicit mock mode is set, use local mock catalog
     if (this.mockMode) {
       return this._findMockVouchers(cleanDomain);
     }
 
-    // 2. Attempt live query to SARAL user vouchers endpoint
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -363,7 +475,6 @@ class SaralAPI {
         `${this.apiBase}/api/user/vouchers?domain=${encodeURIComponent(cleanDomain)}`,
         { method: 'GET', headers, signal: controller.signal }
       ).catch(async () => {
-        // Fallback port attempt
         return await fetch(
           `${FALLBACK_API_BASE}/api/user/vouchers?domain=${encodeURIComponent(cleanDomain)}`,
           { method: 'GET', headers, signal: controller.signal }
@@ -378,16 +489,14 @@ class SaralAPI {
         if (list.length > 0) return list;
       }
 
-      // If backend returned 404 or empty, fall back to verified mock catalog for partner domains
       return this._findMockVouchers(cleanDomain);
     } catch {
-      // Disconnected / offline fallback
       return this._findMockVouchers(cleanDomain);
     }
   }
 
   /**
-   * Retrieve all partner vouchers across supported domains
+   * Retrieve all partner vouchers
    * @returns {Array<object>}
    */
   getAllPartnerVouchers() {
@@ -396,6 +505,126 @@ class SaralAPI {
       all.push(...vouchers);
     });
     return all;
+  }
+
+  /**
+   * Phase 3: Fetch active recurring subscriptions / mandates for domain
+   * @param {string} domain - Target merchant hostname
+   * @param {string} [token] - Authenticated user JWT
+   * @returns {Promise<Array<object>>} - List of subscription mandate objects
+   */
+  async fetchSubscriptionsForDomain(domain, token) {
+    const cleanDomain = this._cleanDomain(domain);
+    if (!cleanDomain) return [];
+
+    if (this.mockMode) {
+      return this._findMockSubscriptions(cleanDomain);
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const headers = { 'Accept': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(
+        `${this.apiBase}/api/user/subscriptions?domain=${encodeURIComponent(cleanDomain)}`,
+        { method: 'GET', headers, signal: controller.signal }
+      ).catch(async () => {
+        return await fetch(
+          `${FALLBACK_API_BASE}/api/user/subscriptions?domain=${encodeURIComponent(cleanDomain)}`,
+          { method: 'GET', headers, signal: controller.signal }
+        );
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response && response.ok) {
+        const data = await response.json();
+        const list = Array.isArray(data) ? data : (data.subscriptions || []);
+        if (list.length > 0) return list;
+      }
+
+      return this._findMockSubscriptions(cleanDomain);
+    } catch {
+      return this._findMockSubscriptions(cleanDomain);
+    }
+  }
+
+  /**
+   * Phase 3: Retrieve all active user subscriptions to calculate burn & overview
+   * @param {string} [token]
+   * @returns {Promise<Array<object>>}
+   */
+  async getAllUserSubscriptions(token) {
+    if (this.mockMode) {
+      return MOCK_SUBSCRIPTIONS;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+      const headers = { 'Accept': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const response = await fetch(`${this.apiBase}/api/user/subscriptions`, {
+        method: 'GET',
+        headers,
+        signal: controller.signal
+      }).catch(async () => {
+        return await fetch(`${FALLBACK_API_BASE}/api/user/subscriptions`, {
+          method: 'GET',
+          headers,
+          signal: controller.signal
+        });
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response && response.ok) {
+        const data = await response.json();
+        const list = Array.isArray(data) ? data : (data.subscriptions || []);
+        if (list.length > 0) return list;
+      }
+
+      return MOCK_SUBSCRIPTIONS;
+    } catch {
+      return MOCK_SUBSCRIPTIONS;
+    }
+  }
+
+  /**
+   * Compute monthly burn stats from subscription array
+   * @param {Array<object>} subscriptions
+   * @returns {{count: number, estimatedMonthlyInr: number, formattedInr: string}}
+   */
+  calculateMonthlyBurn(subscriptions = []) {
+    const count = subscriptions.length;
+    let totalInr = 0;
+
+    subscriptions.forEach(sub => {
+      if (sub.amountInr) {
+        totalInr += Number(sub.amountInr);
+      } else if (sub.currency === 'USD') {
+        const num = parseFloat(String(sub.amount).replace(/[^0-9.]/g, '')) || 0;
+        totalInr += Math.round(num * 84);
+      } else {
+        const num = parseFloat(String(sub.amount).replace(/[^0-9.]/g, '')) || 0;
+        if (sub.frequency === 'year') {
+          totalInr += Math.round(num / 12);
+        } else {
+          totalInr += Math.round(num);
+        }
+      }
+    });
+
+    return {
+      count,
+      estimatedMonthlyInr: totalInr,
+      formattedInr: `₹${totalInr.toLocaleString('en-IN')}`
+    };
   }
 
   /**
@@ -420,15 +649,25 @@ class SaralAPI {
     if (MOCK_PARTNER_VOUCHERS[cleanDomain]) {
       return MOCK_PARTNER_VOUCHERS[cleanDomain];
     }
-
-    // Subdomain matching (e.g. pay.amazon.in -> amazon.in, food.swiggy.com -> swiggy.com)
     for (const partnerDomain of Object.keys(MOCK_PARTNER_VOUCHERS)) {
       if (cleanDomain.endsWith(`.${partnerDomain}`)) {
         return MOCK_PARTNER_VOUCHERS[partnerDomain];
       }
     }
-
     return [];
+  }
+
+  /**
+   * Helper: Match domain against subscriptions catalog
+   * @private
+   */
+  _findMockSubscriptions(cleanDomain) {
+    return MOCK_SUBSCRIPTIONS.filter(sub => {
+      if (sub.domain === cleanDomain) return true;
+      if (sub.domains && sub.domains.includes(cleanDomain)) return true;
+      if (sub.domains && sub.domains.some(d => cleanDomain.endsWith(`.${d}`))) return true;
+      return false;
+    });
   }
 
   /**

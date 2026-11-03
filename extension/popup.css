@@ -498,6 +498,12 @@ body::-webkit-scrollbar-thumb {
   border: 1px solid #A7F3D0;
 }
 
+.card-tag-indigo {
+  background-color: #EEF2FF !important;
+  color: #4F46E5 !important;
+  border: 1px solid #C7D2FE;
+}
+
 /* ======================================================== */
 /* ACCORDION DROPDOWN PANEL FOR VOUCHERS                    */
 /* ======================================================== */
@@ -554,8 +560,24 @@ body::-webkit-scrollbar-thumb {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 180px;
+  max-height: 240px;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
+
+.popup-voucher-list::-webkit-scrollbar,
+.popup-subs-list::-webkit-scrollbar {
+  width: 4px;
+}
+.popup-voucher-list::-webkit-scrollbar-track,
+.popup-subs-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.popup-voucher-list::-webkit-scrollbar-thumb,
+.popup-subs-list::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 4px;
 }
 
 .popup-voucher-item {
@@ -689,6 +711,131 @@ body::-webkit-scrollbar-thumb {
   background-color: #EFF6FF;
   border-color: #93C5FD;
   color: #2563EB;
+}
+
+/* ======================================================== */
+/* ACCORDION DROPDOWN PANEL FOR SUBSCRIPTIONS (PHASE 3)    */
+/* ======================================================== */
+
+.popup-subs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}
+
+.popup-sub-item {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: 8px;
+  padding: 9px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: border-color 0.15s ease;
+}
+
+.popup-sub-item:hover {
+  border-color: #CBD5E1;
+}
+
+.popup-sub-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.popup-sub-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.popup-sub-amount {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0F172A;
+}
+
+.popup-sub-mid {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+}
+
+.popup-sub-renewal {
+  color: #B45309;
+  background-color: #FEF3C7;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.popup-sub-method {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.popup-sub-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 5px;
+  border-top: 1px solid var(--border-hairline);
+}
+
+.popup-sub-plan {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.btn-sub-manage {
+  background: transparent;
+  border: 1px solid #CBD5E1;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #0F172A;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.15s ease;
+}
+
+.btn-sub-manage:hover {
+  background: #0F172A;
+  color: #FFFFFF;
+  border-color: #0F172A;
+}
+
+.popup-subs-empty {
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.btn-secondary-sm {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-hairline);
+  color: var(--text-primary);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+  transition: all 0.15s ease;
+}
+
+.btn-secondary-sm:hover {
+  background-color: #E2E8F0;
 }
 
 .card-tag {

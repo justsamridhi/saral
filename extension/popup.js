@@ -1,7 +1,7 @@
 /**
- * SARAL Companion Extension — Popup Controller (Phase 2: Smart Rewards Engine)
+ * SARAL Companion Extension — Popup Controller (Phase 3: Active Subscription & Auto-Pay Tracker)
  * Manages View A (Sign In) and View B (Companion Hub) states,
- * contextual voucher inspection, accordion dropdown, and responsive UI interactions.
+ * contextual voucher inspection, subscription mandate tracking, accordion dropdowns, and deep-linking.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -27,6 +27,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const userDisplayName = document.getElementById('user-display-name');
   const btnSignOut = document.getElementById('btn-sign-out');
   const activeDomainName = document.getElementById('active-domain-name');
+
+  // Rewards Accordion Elements
   const cardRewards = document.getElementById('card-rewards');
   const rewardsCardBadge = document.getElementById('rewards-card-badge');
   const rewardsChevronContainer = cardRewards ? cardRewards.querySelector('.card-chevron-container') : null;
@@ -37,7 +39,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   const popupVoucherList = document.getElementById('popup-voucher-list');
   const popupVoucherEmpty = document.getElementById('popup-voucher-empty');
   const partnerChips = document.querySelectorAll('.partner-chip');
+
+  // Subscriptions Accordion Elements (Phase 3)
+  const cardSubscriptions = document.getElementById('card-subscriptions');
+  const subsCardBadge = document.getElementById('subs-card-badge');
+  const subsChevronContainer = cardSubscriptions ? cardSubscriptions.querySelector('.card-chevron-container') : null;
   const subsMetricText = document.getElementById('subs-metric-text');
+  const subscriptionsDropdownPanel = document.getElementById('subscriptions-dropdown-panel');
+  const subsAccordionTitle = document.getElementById('subs-accordion-title');
+  const btnOpenSaralActivity = document.getElementById('btn-open-saral-activity');
+  const popupSubsList = document.getElementById('popup-subs-list');
+  const popupSubsEmpty = document.getElementById('popup-subs-empty');
+  const btnViewAllMandates = document.getElementById('btn-view-all-mandates');
+
+  // Password Guardian
   const securityMetricText = document.getElementById('security-metric-text');
 
   // Toggles
@@ -54,6 +69,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentDomainName = '';
   let activeTabVouchers = [];
   let isShowingAllStores = false;
+
+  let activeDomainSubs = [];
+  let allMonitoredSubs = [];
+  let isShowingAllSubs = false;
 
   /**
    * Safe message dispatcher to background script
@@ -94,7 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load user preferences into toggles
     await loadToggleSettings();
 
-    // Inspect active tab domain and load vouchers
+    // Inspect active tab domain, vouchers, and subscriptions
     await inspectCurrentDomain();
 
     // Run connection ping and environment detection
@@ -103,7 +122,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   /**
    * Display error alert banner in View A
-   * @param {string} message
    */
   function showError(message) {
     authAlertMessage.textContent = message;
@@ -120,7 +138,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   /**
    * Toggle button loading spinner state
-   * @param {boolean} isLoading
    */
   function setButtonLoading(isLoading) {
     if (isLoading) {
@@ -135,13 +152,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
-   * Inspect current active tab and query contextual vouchers
+   * Inspect current active tab, rewards, and subscriptions
    */
   async function inspectCurrentDomain() {
     let domain = 'localhost';
 
     if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
-      const tabs = await new Promise(resolve => {
+      const tabs = await new Promise((resolve) => {
         chrome.tabs.query({ active: true, currentWindow: true }, resolve);
       });
 
@@ -161,30 +178,63 @@ document.addEventListener('DOMContentLoaded', async () => {
     currentDomainName = domain;
     activeDomainName.textContent = domain;
 
-    // Check if user enabled voucher inspection
+    const token = await SaralStorage.getToken();
     const settings = await SaralStorage.getSettings();
+
+    // 1. REWARDS / VOUCHERS INSPECTION
     if (!settings.vouchersEnabled) {
       rewardsMetricText.textContent = 'Vouchers paused in settings';
       rewardsCardBadge.textContent = 'PAUSED';
       rewardsCardBadge.className = 'card-tag';
-      return;
+    } else {
+      rewardsMetricText.textContent = `Checking vouchers for ${domain}...`;
+      try {
+        const vouchers = await saralApi.fetchVouchersForDomain(domain, token);
+        activeTabVouchers = vouchers || [];
+        isShowingAllStores = false;
+
+        renderRewardsSummary(domain, activeTabVouchers);
+        renderVoucherList(activeTabVouchers, domain);
+      } catch (err) {
+        console.warn('[Popup] Voucher lookup failed:', err);
+        rewardsMetricText.textContent = `0 active vouchers for ${domain}`;
+        rewardsCardBadge.textContent = '0 DEALS';
+        rewardsCardBadge.className = 'card-tag';
+      }
     }
 
-    // Fetch verified vouchers for this domain
-    rewardsMetricText.textContent = `Checking vouchers for ${domain}...`;
-    try {
-      const token = await SaralStorage.getToken();
-      const vouchers = await saralApi.fetchVouchersForDomain(domain, token);
-      activeTabVouchers = vouchers || [];
-      isShowingAllStores = false;
+    // 2. SUBSCRIPTIONS & AUTO-PAY INSPECTION (PHASE 3)
+    if (!settings.subscriptionsEnabled) {
+      subsMetricText.textContent = 'Subscriptions paused in settings';
+      subsCardBadge.textContent = 'PAUSED';
+      subsCardBadge.className = 'card-tag';
+    } else {
+      subsMetricText.textContent = `Checking auto-pay mandates...`;
+      try {
+        const [domainSubs, allSubs] = await Promise.all([
+          saralApi.fetchSubscriptionsForDomain(domain, token),
+          saralApi.getAllUserSubscriptions(token)
+        ]);
 
-      renderRewardsSummary(domain, activeTabVouchers);
-      renderVoucherList(activeTabVouchers, domain);
-    } catch (err) {
-      console.warn('[Popup] Voucher lookup failed:', err);
-      rewardsMetricText.textContent = `0 active vouchers for ${domain}`;
-      rewardsCardBadge.textContent = '0 DEALS';
-      rewardsCardBadge.className = 'card-tag';
+        activeDomainSubs = domainSubs || [];
+        allMonitoredSubs = allSubs || [];
+        isShowingAllSubs = false;
+
+        const burnStats = saralApi.calculateMonthlyBurn(allMonitoredSubs);
+        renderSubscriptionSummary(domain, activeDomainSubs, burnStats);
+
+        // Pre-populate dropdown list with domain subs or all subs
+        if (activeDomainSubs.length > 0) {
+          renderSubscriptionList(activeDomainSubs, domain, false);
+        } else {
+          renderSubscriptionList(allMonitoredSubs, 'All Services', true);
+        }
+      } catch (err) {
+        console.warn('[Popup] Subscriptions lookup failed:', err);
+        subsMetricText.textContent = `0 auto-pay mandates detected`;
+        subsCardBadge.textContent = 'MONITORED';
+        subsCardBadge.className = 'card-tag';
+      }
     }
   }
 
@@ -207,7 +257,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
-   * Render voucher list inside the accordion panel
+   * Update the Subscriptions Card summary text and badge (Phase 3)
+   */
+  function renderSubscriptionSummary(domain, domainSubs, burnStats) {
+    if (!subsMetricText || !subsCardBadge) return;
+
+    if (domainSubs && domainSubs.length > 0) {
+      const count = domainSubs.length;
+      subsMetricText.textContent = `${count} Auto-Pay Active for ${domain}`;
+      subsCardBadge.textContent = 'ACTIVE';
+      subsCardBadge.className = 'card-tag card-tag-green';
+    } else {
+      subsMetricText.textContent = `Total: ${burnStats.count} Monitored Mandates (~${burnStats.formattedInr}/mo)`;
+      subsCardBadge.textContent = 'MONITORED';
+      subsCardBadge.className = 'card-tag card-tag-indigo';
+    }
+  }
+
+  /**
+   * Render voucher list inside the rewards accordion panel
    */
   function renderVoucherList(vouchers, domainTitle) {
     if (!popupVoucherList || !popupVoucherEmpty) return;
@@ -257,6 +325,61 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       popupVoucherList.appendChild(item);
+    });
+  }
+
+  /**
+   * Render subscriptions list inside the subscriptions accordion panel (Phase 3)
+   */
+  function renderSubscriptionList(subscriptions, title, isOverview = false) {
+    if (!popupSubsList || !popupSubsEmpty) return;
+
+    subsAccordionTitle.textContent = isOverview
+      ? `All Monitored Mandates (${subscriptions.length})`
+      : `Auto-Pay for ${title}`;
+
+    popupSubsList.innerHTML = '';
+
+    if (!subscriptions || subscriptions.length === 0) {
+      popupSubsList.style.display = 'none';
+      popupSubsEmpty.style.display = 'flex';
+      return;
+    }
+
+    popupSubsList.style.display = 'flex';
+    popupSubsEmpty.style.display = 'none';
+
+    subscriptions.forEach((sub) => {
+      const item = document.createElement('div');
+      item.className = 'popup-sub-item';
+      item.innerHTML = `
+        <div class="popup-sub-top">
+          <span class="popup-sub-title">${escapeHTML(sub.service)}</span>
+          <span class="popup-sub-amount">${escapeHTML(sub.amount)} <small style="font-size:10px;font-weight:400;color:#64748B">/${escapeHTML(sub.frequency)}</small></span>
+        </div>
+        <div class="popup-sub-mid">
+          <span class="popup-sub-renewal">Renews ${escapeHTML(sub.renewalDate)}</span>
+          <span class="popup-sub-method">${escapeHTML(sub.autoPayMethod)}</span>
+        </div>
+        <div class="popup-sub-bottom">
+          <span class="popup-sub-plan">${escapeHTML(sub.plan || 'Active')}</span>
+          <button type="button" class="btn-sub-manage" title="Manage mandate in SARAL dashboard">
+            <span>Manage</span>
+            <svg width="9" height="9" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 0 014.25 4h4a.75.75 0 010 1.5h-4z" clip-rule="evenodd"/>
+              <path fill-rule="evenodd" d="M6.19 13.81a.75.75 0 010-1.06l6.47-6.47H9.75a.75.75 0 010-1.5h4.5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0V7.06l-6.25 6.25a.75.75 0 01-1.06 0z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+        </div>
+      `;
+
+      const btnManage = item.querySelector('.btn-sub-manage');
+      btnManage.addEventListener('click', (e) => {
+        e.stopPropagation();
+        notifyBackground('OPEN_SARAL_MANAGE');
+      });
+
+      popupSubsList.appendChild(item);
     });
   }
 
@@ -313,6 +436,43 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
+   * Toggle Accordion Dropdown on clicking Subscriptions Card (Phase 3)
+   */
+  if (cardSubscriptions) {
+    cardSubscriptions.addEventListener('click', () => {
+      const isVisible = subscriptionsDropdownPanel.style.display !== 'none';
+      if (isVisible) {
+        subscriptionsDropdownPanel.style.display = 'none';
+        subsChevronContainer.classList.remove('expanded');
+      } else {
+        subscriptionsDropdownPanel.style.display = 'block';
+        subsChevronContainer.classList.add('expanded');
+      }
+    });
+  }
+
+  /**
+   * Manage on SARAL Deep-Link Button
+   */
+  if (btnOpenSaralActivity) {
+    btnOpenSaralActivity.addEventListener('click', (e) => {
+      e.stopPropagation();
+      notifyBackground('OPEN_SARAL_MANAGE');
+    });
+  }
+
+  /**
+   * View all mandates button in empty state
+   */
+  if (btnViewAllMandates) {
+    btnViewAllMandates.addEventListener('click', (e) => {
+      e.stopPropagation();
+      isShowingAllSubs = true;
+      renderSubscriptionList(allMonitoredSubs, 'All Services', true);
+    });
+  }
+
+  /**
    * Toggle between Current Site Vouchers and All Partner Perks
    */
   if (btnBrowseAllPerks) {
@@ -331,7 +491,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   /**
    * Partner store chip clicks
    */
-  partnerChips.forEach(chip => {
+  partnerChips.forEach((chip) => {
     chip.addEventListener('click', async (e) => {
       e.stopPropagation();
       const domain = chip.dataset.domain;
@@ -364,8 +524,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       passwordAlertEnabled: togglePasswords.checked
     };
     await SaralStorage.saveSettings(updated);
-
-    // Refresh rewards display on toggle change
     await inspectCurrentDomain();
   }
 
@@ -387,10 +545,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         footerPingText.textContent = 'Offline';
       }
 
-      // Determine environment mode
       if (user?.is_demo || health.mode.includes('Mock')) {
         footerEnvIndicator.textContent = 'Demo Mode';
-        footerEnvIndicator.style.color = '#B45309'; // Amber
+        footerEnvIndicator.style.color = '#B45309';
       } else {
         footerEnvIndicator.textContent = 'Live API';
         footerEnvIndicator.style.color = '#0F172A';

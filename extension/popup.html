@@ -176,8 +176,8 @@
           </div>
         </div>
 
-        <!-- Card 2: Subscriptions -->
-        <div class="readiness-card">
+        <!-- Card 2: Subscriptions (Interactive Accordion) -->
+        <div id="card-subscriptions" class="readiness-card readiness-card-interactive" role="button" tabindex="0" title="Click to view recurring auto-pay mandates">
           <div class="card-icon-container icon-subs">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
               <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
@@ -186,9 +186,31 @@
           <div class="card-content">
             <div class="card-title-row">
               <span class="card-title">Subscriptions</span>
-              <span class="card-tag">Phase 3</span>
+              <span id="subs-card-badge" class="card-tag">MONITORED</span>
             </div>
-            <p id="subs-metric-text" class="card-metric">0 auto-pay mandates detected</p>
+            <p id="subs-metric-text" class="card-metric">Loading monitored auto-pay mandates...</p>
+          </div>
+          <div class="card-chevron-container">
+            <svg id="subs-chevron" class="card-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+              <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Dropdown Accordion Panel for Subscriptions -->
+        <div id="subscriptions-dropdown-panel" class="accordion-panel" style="display: none;">
+          <div class="accordion-inner">
+            <div class="accordion-header-row">
+              <span id="subs-accordion-title" class="accordion-domain-label">Monitored Mandates</span>
+              <button type="button" id="btn-open-saral-activity" class="btn-text-action" title="Open SARAL Activity dashboard">Manage on SARAL ↗</button>
+            </div>
+            <div id="popup-subs-list" class="popup-subs-list">
+              <!-- Dynamically populated via popup.js -->
+            </div>
+            <div id="popup-subs-empty" class="popup-subs-empty" style="display: none;">
+              <p class="empty-primary">No recurring mandates active on this domain.</p>
+              <button type="button" id="btn-view-all-mandates" class="btn-secondary-sm">View All Monitored Mandates</button>
+            </div>
           </div>
         </div>
 
