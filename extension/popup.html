@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SARAL Companion</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="extension-container">
+    
+    <!-- ======================================================== -->
+    <!-- VIEW A: LOGGED-OUT / SIGN IN                            -->
+    <!-- ======================================================== -->
+    <section id="view-logged-out" class="view-panel" style="display: none;">
+      <!-- Brand Header -->
+      <header class="auth-header">
+        <div class="brand-row">
+          <div class="brand-wordmark">
+            <span class="logo-text">saral</span>
+            <span class="badge-companion">Companion</span>
+          </div>
+        </div>
+        <p class="auth-subtitle">Sign in with your SARAL credentials</p>
+      </header>
+
+      <!-- Status / Error Alert Banner -->
+      <div id="auth-alert" class="alert-banner" role="alert" style="display: none;">
+        <svg class="alert-icon" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/>
+        </svg>
+        <span id="auth-alert-message" class="alert-text">Error message</span>
+      </div>
+
+      <!-- Sign In Form -->
+      <form id="auth-form" class="auth-form" novalidate>
+        <div class="form-group">
+          <label for="input-email" class="form-label">Email Address</label>
+          <div class="input-wrapper">
+            <input 
+              type="email" 
+              id="input-email" 
+              class="form-input" 
+              placeholder="samridhi@kdu.in" 
+              autocomplete="email" 
+              required
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="input-password" class="form-label">Password</label>
+          <div class="input-wrapper password-wrapper">
+            <input 
+              type="password" 
+              id="input-password" 
+              class="form-input" 
+              placeholder="••••••••••••" 
+              autocomplete="current-password" 
+              required
+            />
+            <button 
+              type="button" 
+              id="btn-toggle-password" 
+              class="btn-icon-addon" 
+              aria-label="Toggle password visibility"
+              tabindex="-1"
+            >
+              <svg id="eye-icon-show" class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <svg id="eye-icon-hide" class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" id="btn-submit-login" class="btn-primary">
+          <span class="btn-text">Sign In</span>
+          <span class="btn-spinner" style="display: none;"></span>
+        </button>
+      </form>
+
+      <!-- Auth Footnote & Mode Info -->
+      <div class="auth-footer-notice">
+        <p class="notice-text">
+          Connects to your <strong>SARAL Personal Workspace</strong>. No payment keys or service-role secrets are ever stored in the browser.
+        </p>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- VIEW B: LOGGED-IN / COMPANION HUB                        -->
+    <!-- ======================================================== -->
+    <section id="view-logged-in" class="view-panel" style="display: none;">
+      <!-- Hub Top Bar -->
+      <header class="hub-header">
+        <div class="user-profile-badge">
+          <div class="avatar-circle">
+            <span id="user-avatar-initials">SG</span>
+          </div>
+          <div class="user-meta">
+            <div class="greeting-row">
+              <span class="greeting-label">Hi, <strong id="user-display-name">Samridhi</strong></span>
+            </div>
+            <div class="connection-status-pill">
+              <span class="status-dot"></span>
+              <span class="status-pill-text">Connected to SARAL</span>
+            </div>
+          </div>
+        </div>
+
+        <button type="button" id="btn-sign-out" class="btn-disconnect" title="Disconnect and sign out">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+            <path fill-rule="evenodd" d="M3 4.25A2.25 2.25 0 015.25 2h5.5A2.25 2.25 0 0113 4.25v2a.75.75 0 01-1.5 0v-2a.75.75 0 00-.75-.75h-5.5a.75.75 0 00-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 00.75-.75v-2a.75.75 0 011.5 0v2A2.25 2.25 0 0110.75 18h-5.5A2.25 2.25 0 013 15.75V4.25z" clip-rule="evenodd"/>
+            <path fill-rule="evenodd" d="M19 10a.75.75 0 00-.75-.75H8.704l2.473-2.473a.75.75 0 10-1.06-1.06l-3.75 3.75a.75.75 0 000 1.06l3.75 3.75a.75.75 0 101.06-1.06L8.704 10.75h9.546A.75.75 0 0019 10z" clip-rule="evenodd"/>
+          </svg>
+          <span>Sign Out</span>
+        </button>
+      </header>
+
+      <!-- Active Domain Context Strip -->
+      <div class="active-context-strip">
+        <span class="context-label">Current Domain:</span>
+        <span id="active-domain-name" class="context-domain">Checking tab...</span>
+      </div>
+
+      <!-- Metric Readiness Cards (Ready for Phase 2–4 expansion) -->
+      <div class="metric-cards-container">
+        
+        <!-- Card 1: Rewards & Vouchers -->
+        <div class="readiness-card">
+          <div class="card-icon-container icon-rewards">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+              <line x1="7" y1="7" x2="7.01" y2="7"></line>
+            </svg>
+          </div>
+          <div class="card-content">
+            <div class="card-title-row">
+              <span class="card-title">Rewards & Vouchers</span>
+              <span class="card-tag">Phase 2</span>
+            </div>
+            <p id="rewards-metric-text" class="card-metric">0 active vouchers for current domain</p>
+          </div>
+        </div>
+
+        <!-- Card 2: Subscriptions -->
+        <div class="readiness-card">
+          <div class="card-icon-container icon-subs">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+            </svg>
+          </div>
+          <div class="card-content">
+            <div class="card-title-row">
+              <span class="card-title">Subscriptions</span>
+              <span class="card-tag">Phase 3</span>
+            </div>
+            <p id="subs-metric-text" class="card-metric">0 auto-pay mandates detected</p>
+          </div>
+        </div>
+
+        <!-- Card 3: Password Guardian -->
+        <div class="readiness-card">
+          <div class="card-icon-container icon-security">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <polyline points="9 12 11 14 15 10"></polyline>
+            </svg>
+          </div>
+          <div class="card-content">
+            <div class="card-title-row">
+              <span class="card-title">Password Guardian</span>
+              <span class="card-tag">Phase 4</span>
+            </div>
+            <p id="security-metric-text" class="card-metric">Security Coach Active</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Quick Toggle Controls Section -->
+      <div class="toggles-section">
+        <h4 class="toggles-heading">Quick Controls</h4>
+
+        <!-- Toggle: Vouchers -->
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <span class="toggle-name">Vouchers</span>
+            <span class="toggle-desc">Show deals on active stores</span>
+          </div>
+          <label class="switch-toggle" for="toggle-vouchers">
+            <input type="checkbox" id="toggle-vouchers" checked />
+            <span class="slider-round"></span>
+          </label>
+        </div>
+
+        <!-- Toggle: Subscriptions -->
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <span class="toggle-name">Subscriptions</span>
+            <span class="toggle-desc">Alert on checkout recurring terms</span>
+          </div>
+          <label class="switch-toggle" for="toggle-subs">
+            <input type="checkbox" id="toggle-subs" checked />
+            <span class="slider-round"></span>
+          </label>
+        </div>
+
+        <!-- Toggle: Password Alert -->
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <span class="toggle-name">Password Alert</span>
+            <span class="toggle-desc">Warn against reused credentials</span>
+          </div>
+          <label class="switch-toggle" for="toggle-passwords">
+            <input type="checkbox" id="toggle-passwords" checked />
+            <span class="slider-round"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Hub Footer -->
+      <footer class="hub-footer">
+        <div class="footer-status-row">
+          <div class="footer-ping">
+            <span id="footer-ping-dot" class="ping-dot"></span>
+            <span id="footer-ping-text">Connecting...</span>
+          </div>
+          <span id="footer-env-indicator" class="env-pill">Real API</span>
+          <span class="version-tag">v0.1.0</span>
+        </div>
+      </footer>
+    </section>
+
+  </div>
+
+  <!-- Client Scripts -->
+  <script src="utils/storage.js"></script>
+  <script src="utils/api.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
