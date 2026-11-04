@@ -1,162 +1,678 @@
-# SARAL — AI-Powered Digital Services Ecosystem with PayPal Trust Gate
+# SARAL
+### AI-Powered Digital Services Ecosystem with PayPal Trust Gate
 
-> **"One intelligent interface. Multiple everyday services. Transparent, user-controlled transactions."**
+**One intelligent interface. Multiple everyday services. Transparent, user-controlled transactions.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Supabase: Auth & PostgreSQL RLS](https://img.shields.io/badge/Supabase-Auth%20%26%20RLS-3ECF8E?logo=supabase)](https://supabase.com)
-[![PayPal: Orders v2 Pre-Auth](https://img.shields.io/badge/PayPal-Sandbox%20v2-00457C?logo=paypal)](https://developer.paypal.com)
-[![Node.js: Express Gateway](https://img.shields.io/badge/Node.js-Express%20v4-339933?logo=node.js)](https://nodejs.org)
-
-SARAL resolves the fundamental vulnerability of autonomous agentic commerce: **unauthorized financial liability and agent hallucination**. Instead of allowing AI to autonomously charge payment credentials, SARAL enforces a cryptographically audited **Trust Gate** protocol ("Hold $\to$ Verify $\to$ Pay") with explicit user approval before funds can be committed.
+[![Supabase](https://img.shields.io/badge/Supabase-Auth%20%26%20PostgreSQL-3ECF8E?logo=supabase)](https://supabase.com/)
+[![PayPal](https://img.shields.io/badge/PayPal-Orders%20v2-00457C?logo=paypal)](https://developer.paypal.com/)
+[![Node.js](https://img.shields.io/badge/Node.js-Express%20v4-339933?logo=node.js)](https://nodejs.org/)
+[![Chrome Extension](https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4?logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/)
+[![JavaScript](https://img.shields.io/badge/JavaScript-ES6%2B-F7DF1E?logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 
 ---
 
-## 1. Product Architecture & Surfaces
+## 1. What is SARAL?
+
+SARAL is an AI-powered digital services ecosystem that brings everyday transactions, commerce intelligence and payment management into one connected experience.
+
+Users can interact with an AI agent to discover services, prepare purchases, evaluate transaction details and manage payments through a unified interface.
+
+From cinema bookings and portable power bank rentals to mobile recharges, utility payments and reseller commerce, SARAL aims to simplify fragmented digital experiences.
+
+But SARAL is built around a deeper problem:
+
+**How can AI participate in commerce without receiving unrestricted authority over a user's money?**
+
+Traditional agentic commerce can introduce risks such as unauthorized purchases, price changes, unverified merchants and AI-generated transaction details that users cannot independently validate.
+
+SARAL addresses this through its central innovation: the **PayPal Trust Gate**.
+
+Instead of allowing an AI agent to autonomously charge a payment method, SARAL separates transaction preparation, verification and financial execution.
+
+The AI proposes. The Trust Gate verifies. The user authorizes. PayPal processes.
+
+**AI can help make the decision, but the user remains in control of the money.**
+
+---
+
+## 2. Problems SARAL Addresses
+
+| Problem | SARAL's approach |
+|---|---|
+| Uncontrolled AI purchases | AI generates structured proposals instead of independently committing payments. |
+| Unauthorized financial transactions | Explicit user approval is required before financial execution. |
+| Hidden price changes | Trust Gate checks the proposed and final transaction amounts. |
+| Unverified merchants | Merchant integrity checks help identify unsupported or untrusted services. |
+| Unclear payment states | PayPal authorization, capture and void states are represented in the transaction ledger. |
+| Fragmented digital services | Connected mini-apps bring everyday services into one interface. |
+| Subscription visibility | Companion provides subscription intelligence from available account records. |
+| Limited payment transparency | Payment Intelligence provides transaction visibility and explanations. |
+| Lack of browser-level assistance | SARAL Companion extends commerce intelligence into the browser. |
+| Unclear financial accountability | Transaction events and Trust Gate decisions are recorded for auditability. |
+
+---
+
+## 3. Product Architecture
+
+SARAL consists of three connected product surfaces.
 
 ### A. SARAL Personal Workspace
-- **Ask SARAL AI Agent**: Understands conversational intent across everyday services (Cinema, Power Bank, Mobile Recharge, Utilities). Formulates structured proposals without autonomous charge permissions.
-- **Trust Gate Verification**: Verifies 0% price drift, merchant integrity, and user spending guardrails before funds commitment.
-- **Pre-Authorization Deposit Protocol**: Implements two-phase PayPal authorization (`INTENT=AUTHORIZE`) enabling refundable rental holds (e.g. power banks) and ticket reservations.
-- **Activity Ledger**: Append-only audit record of all authorizations, captures, voids, and Trust Gate compliance scores.
+
+The Personal Workspace is designed for individuals accessing everyday digital services.
+
+| Feature | Description |
+|---|---|
+| Ask SARAL AI Agent | Understands conversational requests and prepares structured transaction proposals. |
+| Trust Gate | Evaluates merchant, price and spending conditions before payment authorization. |
+| PayPal Authorization | Supports an authorization-first payment workflow. |
+| Activity Ledger | Tracks transaction events, payment states and Trust Gate decisions. |
+| Spending Guardrails | Applies configurable transaction and daily spending limits. |
+| Connected Mini-Apps | Provides access to everyday services through a unified experience. |
 
 ### B. SARAL Business Reseller Workspace
-- **Canonical Inventory**: Single source of truth for high-value merchandise (vintage cameras, audio equipment, refurbished laptops).
-- **Buyer Memory CRM**: Structured buyer intelligence tracking collector preferences, past spending, and price tolerances.
-- **Marketplace Intelligence**: Real-time cross-channel fee and net take-home price recommendations (eBay vs Mercari vs Direct PayPal Checkout).
-- **PayPal Sandbox Checkout**: Direct invoice creation and payment reconciliation.
 
-### C. Connected Mini-Apps
-1. **Cinema**: Live 6x6 interactive seating matrix, IMAX ticket checkout, concession add-ons.
-2. **Portable Power Bank**: Automated pre-auth deposit hold protocol ($18.00) with live duration counter and automatic reconciliation upon return.
-3. **Mobile Recharge**: Telecom prepaid plans and high-speed 5G packs with instant carrier confirmation.
-4. **Utility Payments**: Municipal electricity, water, and broadband bill consolidation.
+The Business Workspace provides tools for managing inventory, understanding customers and improving reseller economics.
+
+| Feature | Description |
+|---|---|
+| Canonical Inventory | Centralized inventory for vintage cameras, audio equipment and refurbished laptops. |
+| Buyer Memory CRM | Organizes buyer preferences, purchase history and price tolerance. |
+| Marketplace Intelligence | Compares marketplace fees and estimated net proceeds across sales channels. |
+| PayPal Checkout | Supports direct PayPal checkout and payment reconciliation. |
+
+Personal and Business Workspaces maintain separate responsibilities and data-access boundaries.
+
+### C. SARAL Companion — Chrome Extension
+
+<badge color="success">Connected browser experience</badge>
+
+SARAL Companion extends the SARAL ecosystem beyond the main web application.
+
+It is a Chrome Manifest V3 extension designed to bring merchant-aware assistance, payment intelligence and personal commerce utilities into the user's browsing experience.
+
+Rather than requiring users to repeatedly open the main SARAL application, Companion provides contextual access to relevant information while they browse.
+
+**Core capabilities**
+
+| Feature | Description |
+|---|---|
+| Secure Pairing | Connects the extension to an authenticated SARAL account through a dedicated pairing flow. |
+| Merchant Detection | Identifies the active merchant domain and validates it against trusted-domain information. |
+| Smart Rewards | Helps users discover relevant merchant rewards and available vouchers. |
+| Subscription Intelligence | Provides visibility into subscriptions, renewal information and recurring payments from available account records. |
+| Password Guardian | Provides secure password generation and breach-checking functionality using privacy-conscious techniques. |
+| Card Footprint | Displays available masked payment-card information without exposing full card credentials. |
+| Payment Intelligence | Provides access to authorized transaction summaries and payment details. |
+| AI-Assisted Explanations | Helps users understand payment information and transaction decisions. |
+| Account Lifecycle | Supports pairing, credential expiry, revocation and unpairing. |
+
+**Companion security principles**
+
+- Dedicated Companion authentication rather than exposing the primary web-session credential.
+- Scoped and revocable credentials.
+- Backend-controlled access to payment information.
+- Merchant validation that fails closed for unknown domains.
+- No storage of full card numbers or CVVs.
+- No transmission of plaintext passwords to SARAL.
+- No autonomous financial execution by the extension.
+
+The extension complements the main application; it does not replace the backend Trust Gate or PayPal payment authorization flow.
 
 ---
 
-## 2. Trust Gate & PayPal Authorization Lifecycle
+## 4. Connected Mini-Apps
 
+SARAL's service ecosystem is designed around everyday transactions.
+
+### Cinema
+
+- Interactive 6 × 6 seating matrix.
+- Cinema ticket selection.
+- IMAX ticket checkout.
+- Optional concession add-ons.
+- Structured transaction proposals.
+
+### Portable Power Bank
+
+- Power bank rental workflow.
+- Example $18.00 authorization deposit.
+- Authorization-first payment flow.
+- Rental duration tracking.
+- Return and reconciliation workflow.
+- Capture or void based on the transaction outcome.
+
+### Mobile Recharge
+
+- Telecom prepaid plans.
+- High-speed 5G recharge packs.
+- Recharge proposals.
+- Carrier confirmation where supported by the integration.
+
+### Utility Payments
+
+- Electricity bills.
+- Water bills.
+- Broadband payments.
+- Consolidated bill discovery and payment proposals.
+
+*Actual service fulfillment depends on the relevant provider integrations. Prototype functionality and externally confirmed transactions must be distinguished.*
+
+---
+
+## 5. PayPal Trust Gate — The Core Innovation
+
+### Hold → Verify → Pay
+
+SARAL's central technical differentiator is its use of PayPal's authorization-based payment lifecycle to introduce a user-controlled verification stage before funds are captured.
+
+In a conventional checkout, users often move directly from purchase approval to payment capture.
+
+SARAL introduces an additional decision layer between AI-generated intent and financial execution.
+
+### Trust Gate workflow
+
+```mermaid
+flowchart TD
+    A["User Intent"] --> B["Ask SARAL AI Agent"]
+    B --> C["Structured Transaction Proposal"]
+    C --> D["Trust Gate"]
+
+    D --> E["Price Drift Check"]
+    D --> F["Spending Guardrails"]
+    D --> G["Merchant Integrity"]
+    D --> H["Service Validation"]
+
+    E --> I{"Verification Passed?"}
+    F --> I
+    G --> I
+    H --> I
+
+    I -->|No| J["Decline Proposal"]
+    I -->|Yes| K["Present Transaction to User"]
+
+    K --> L{"Explicit User Approval?"}
+    L -->|No| M["Cancel or Keep Pending"]
+    L -->|Yes| N["PayPal Orders v2"]
+
+    N --> O["Authorization Hold"]
+
+    O --> P{"Service Outcome"}
+
+    P -->|Delivered| Q["Capture Authorization"]
+    P -->|Cancelled| R["Void Authorization"]
+
+    Q --> S["Update Activity Ledger"]
+    R --> S
+    S --> T["Final Transaction State"]
 ```
-[User Intent] ---> (Ask SARAL AI Agent)
-                           |
-                           v
-               [Structured Transaction Proposal]
-                           |
-                           v
-              < Trust Gate Verification >
-              - 0% Price Drift & Slippage Check
-              - Per-Transaction Guardrail ($500 Cap)
-              - Cumulative Daily Spend Limit ($2,000 Cap)
-              - Merchant Integrity & Service Validation
-                           |
-        +------------------+------------------+
-        |                                     |
-   [Declined]                            [Approved]
-        |                                     |
-   (Proposal Cancelled)            (User Explicit Confirmation)
-                                              |
-                                              v
-                              < PayPal Orders v2 API >
-                              intent = "AUTHORIZE"
-                                              |
-                                              v
-                             [Active Authorization Hold]
-                             Funds Reserved (Not Captured)
-                                              |
-                       +----------------------+----------------------+
-                       |                                             |
-            [Service Delivered / Returned]             [Cancelled / Unconsumed]
-                       |                                             |
-                       v                                             v
-          < PayPal Capture API >                        < PayPal Void API >
-          capture_id Generated                          Authorization Released
-          Ledger: "Captured & Completed"                Ledger: "Voided & Released"
-          Proposal: "completed"                         $0.00 Net Charged
+
+### Trust Gate verification
+
+| Check | Purpose |
+|---|---|
+| 0% Price Drift | Ensures the final amount matches the approved proposal. |
+| Transaction Guardrail | Enforces a configurable per-transaction spending cap. |
+| Daily Spending Limit | Evaluates cumulative daily spending. |
+| Merchant Integrity | Checks the merchant against available verification information. |
+| Service Validation | Checks consistency between the requested service and transaction. |
+| Explicit Approval | Requires the user to approve the financial operation. |
+
+Example configuration:
+
+| Guardrail | Example value |
+|---|---:|
+| Maximum transaction amount | $500 |
+| Maximum daily spending | $2,000 |
+| Allowed price drift | 0% |
+
+These are example limits, not universal defaults. Enforcement depends on the deployed configuration.
+
+---
+
+## 6. How SARAL Implements PayPal
+
+PayPal is not simply a checkout button in SARAL. It is the financial execution layer of the Trust Gate protocol.
+
+SARAL uses the **PayPal Orders v2 API** with an authorization-first transaction design.
+
+### A. Intent-based transaction preparation
+
+When a user makes a request, the AI agent converts it into a structured proposal containing information such as:
+
+- Requested service.
+- Merchant.
+- Amount.
+- Currency.
+- Transaction purpose.
+- Relevant service conditions.
+
+The proposal is evaluated before any financial operation is initiated.
+
+The agent does not receive unrestricted permission to execute payments.
+
+### B. PayPal Orders v2 — AUTHORIZE
+
+For supported transactions, SARAL uses:
+
+```json
+{
+  "intent": "AUTHORIZE"
+}
 ```
 
+This allows the payment flow to request authorization rather than immediately capturing funds.
+
+After the user approves the transaction and the PayPal checkout process completes, the backend can obtain the relevant authorization information.
+
+**An authorization hold reserves funds; it does not mean those funds have been captured or transferred to the merchant.**
+
+### C. Capture after fulfillment
+
+When the applicable service outcome is confirmed, SARAL can initiate capture against an eligible authorization.
+
+For example:
+
+- A rental service is completed.
+- The user returns the power bank.
+- The system evaluates the applicable rental outcome.
+- The backend captures the appropriate authorized amount.
+
+### D. Void when cancelled
+
+If the transaction is cancelled before capture and the authorization remains eligible, SARAL can request a void.
+
+This releases the authorization rather than capturing the payment.
+
+### E. Backend-controlled payment operations
+
+Financial operations are handled by the backend rather than directly by the extension or AI agent.
+
+The backend is responsible for:
+
+- PayPal API credentials.
+- Order and authorization identifiers.
+- Ownership validation.
+- Amount and currency checks.
+- Idempotency.
+- Payment status updates.
+- Webhook verification.
+- Transaction reconciliation.
+
+### F. Webhook-driven reconciliation
+
+PayPal webhook events provide an additional mechanism for reconciling payment states.
+
+SARAL's architecture accounts for:
+
+- Webhook signature verification.
+- Duplicate event delivery.
+- Event ID deduplication.
+- Out-of-order event handling.
+- Provider/database reconciliation.
+- Audit event recording.
+
+### Payment lifecycle
+
+| Stage | PayPal operation | SARAL result |
+|---|---|---|
+| Proposal | No financial operation | Transaction prepared. |
+| Verification | Trust Gate checks | Proposal approved or declined. |
+| User approval | Explicit confirmation | Financial action authorized by the user. |
+| Order | Orders v2 | PayPal order created. |
+| Authorization | Authorize | Funds reserved, not captured. |
+| Fulfillment | Capture | Eligible funds collected. |
+| Cancellation | Void | Eligible authorization released. |
+| Reconciliation | Webhooks and backend checks | Ledger updated with verified status. |
+
+**Important:** Actual capture, void, refund and webhook behavior depends on PayPal API eligibility, backend implementation and provider confirmation. A mocked test is not equivalent to a verified Sandbox transaction.
+
 ---
 
-## 3. Security & Database Specifications
+## 7. End-to-End User Journey
 
-### Supabase Database & PostgreSQL RLS
-- **`schema.sql`**: Configures `public.profiles` storing display name, avatar, account plan, spending limits, and onboarding state.
-- **Row Level Security (RLS)**: Enforces strict tenant isolation:
-  - `SELECT`: `auth.uid() = id`
-  - `INSERT`: `with check (auth.uid() = id)`
-  - `UPDATE`: `using (auth.uid() = id) with check (auth.uid() = id)` (spoof-proof against primary key tampering).
-- **Hardened Function `handle_new_user()`**: `SECURITY DEFINER` with fixed `SET search_path = public, pg_temp;` and execution revoked from `public`.
-- **`schema-payments.sql`**:
-  - `proposals`: Structured proposal details with `amount_minor` (USD cents) and expiration.
-  - `payments`: Tracks PayPal `order_id`, `authorization_id`, `capture_id`, and status (`pending`, `authorized`, `captured`, `voided`).
-  - `webhook_events`: Idempotent processing with unique `event_id` constraint.
-  - `audit_events`: Tamper-resistant append-only ledger.
-  - `committed_today_minor(user_uuid)`: Stored procedure calculating UTC cumulative daily spend.
+The following journey illustrates how SARAL connects conversational AI, Trust Gate verification, PayPal and the transaction ledger.
+
+### Example: Booking cinema tickets
+
+**Step 1 — Express intent**
+
+The user opens SARAL and asks:
+
+```text
+Book 2 cinema tickets for Dune 2 tonight.
+```
+
+**Step 2 — AI prepares a proposal**
+
+SARAL interprets the request and prepares a structured transaction proposal containing:
+
+- Service: Cinema tickets.
+- Quantity: 2.
+- Merchant and booking information.
+- Proposed amount.
+- Currency.
+- Relevant transaction conditions.
+
+**Step 3 — Trust Gate verification**
+
+The proposal is evaluated against:
+
+- Price consistency.
+- Spending limits.
+- Merchant integrity.
+- Service validity.
+
+If verification fails, the proposal is declined or returned for correction.
+
+**Step 4 — User reviews and approves**
+
+The user sees the transaction details and explicitly approves the payment.
+
+No financial commitment is made merely because the AI generated a proposal.
+
+**Step 5 — PayPal authorization**
+
+SARAL initiates the configured PayPal Orders v2 authorization workflow.
+
+The user completes the applicable PayPal approval process.
+
+**Step 6 — Authorization hold**
+
+The backend records the PayPal order and authorization references.
+
+The transaction is displayed as authorized, not captured.
+
+**Step 7 — Service fulfillment**
+
+Once the applicable service is fulfilled, SARAL can initiate capture against the eligible authorization.
+
+If the transaction is cancelled, the applicable authorization can instead be voided.
+
+**Step 8 — Activity Ledger**
+
+The user can review the resulting payment state, identifiers and transaction history.
+
+### The result
+
+A transaction flow in which AI assists with discovery and preparation, PayPal handles financial authorization, and the user retains control over the final decision.
 
 ---
 
-## 4. Quick Start & Local Execution
+## 8. Technology Stack
+
+| Layer | Technology | Responsibility |
+|---|---|---|
+| Frontend | HTML, CSS, JavaScript | SARAL application interface. |
+| Backend | Node.js, Express.js | API gateway and business logic. |
+| Database | Supabase PostgreSQL | Application and transaction records. |
+| Authentication | Supabase Auth | User authentication. |
+| Database security | PostgreSQL RLS | Tenant isolation and access control. |
+| Payments | PayPal Orders v2 | Order creation and authorization lifecycle. |
+| AI layer | SARAL AI Agent | Intent interpretation and proposal generation. |
+| Trust layer | SARAL Trust Gate | Transaction verification and spending controls. |
+| Browser extension | Chrome Manifest V3 | Contextual browser assistance. |
+| Password security | Web Crypto API | Secure client-side password generation and cryptographic operations. |
+
+---
+
+## 9. Security and Database Architecture
+
+### Supabase Authentication and PostgreSQL
+
+SARAL uses Supabase for authentication and PostgreSQL for persistent application data.
+
+Core database components include:
+
+| Table / Function | Responsibility |
+|---|---|
+| `profiles` | User profile, account plan, spending limits and onboarding state. |
+| `proposals` | Structured transaction proposals, amounts and expiration. |
+| `payments` | PayPal order, authorization, capture and payment references. |
+| `webhook_events` | Webhook event tracking and deduplication. |
+| `audit_events` | Transaction and Trust Gate audit records. |
+| `committed_today_minor(user_uuid)` | Calculates daily committed spending using minor currency units. |
+
+### Row Level Security
+
+RLS policies are used to enforce user-owned record access.
+
+Example profile policies:
+
+```sql
+-- SELECT
+USING (auth.uid() = id);
+
+-- INSERT
+WITH CHECK (auth.uid() = id);
+
+-- UPDATE
+USING (auth.uid() = id)
+WITH CHECK (auth.uid() = id);
+```
+
+### Additional security controls
+
+- Dedicated Companion authentication.
+- Scoped and revocable extension credentials.
+- Server-side payment execution.
+- Backend ownership validation.
+- Restricted service-role key usage.
+- PayPal webhook signature verification.
+- Idempotent transaction handling.
+- Append-oriented audit records.
+- Masked payment-card information.
+- Privacy-conscious password breach checking.
+- Separation of Personal and Business Workspace data.
+
+*These describe the intended security architecture. Production guarantees require verification of the deployed SQL policies, backend authorization and external integrations.*
+
+---
+
+## 10. Getting Started
 
 ### Prerequisites
-- Node.js 18+ installed
-- Modern Web Browser (Chrome, Firefox, Edge, Safari)
 
-### 1. Clone & Configure Environment
+- Node.js 18 or later.
+- npm.
+- Git.
+- Modern web browser.
+- Supabase project.
+- PayPal Developer Sandbox account.
+
+### 1. Clone the repository
+
 ```bash
-cd E:\saral
-cp .env.example .env
+git clone https://github.com/justsamridhi/saral.git
+cd saral
 ```
-Fill in your credentials in `.env`:
+
+To use the Companion development branch:
+
+```bash
+git checkout feature/saral-companion-extension
+```
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Configure environment variables
+
+**Windows PowerShell**
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Example configuration:
+
 ```env
 PORT=3000
+
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
+
 PAYPAL_ENVIRONMENT=sandbox
 PAYPAL_CLIENT_ID=your-paypal-sandbox-client-id
 PAYPAL_CLIENT_SECRET=your-paypal-sandbox-client-secret
-PAYPAL_WEBHOOK_ID=your-webhook-id
+PAYPAL_WEBHOOK_ID=your-paypal-webhook-id
+
+COMPANION_JWT_SECRET=your-strong-random-secret
+COMPANION_ISSUER=your-configured-companion-issuer
 ```
 
-*(Note: For instant local testing without backend configuration, SARAL includes an offline Prototype Demo mode accessible directly from the welcome screen).*
+Configure any additional variables required by the actual implementation.
 
-### 2. Install Dependencies & Launch
+Never commit `.env` or expose backend secrets in browser-side code.
+
+### 4. Configure Supabase
+
+Apply the required development database schema and migrations in the documented order.
+
+Verify:
+
+- Database tables.
+- Foreign keys and indexes.
+- RLS policies.
+- Database functions.
+- Trigger configuration.
+- Webhook deduplication.
+
+### 5. Start SARAL
+
 ```bash
-npm install
 npm start
 ```
-The server will start at `http://localhost:3000`.
 
-### 3. Run Test Suite
+Local application:
+
+```text
+http://localhost:3000
+```
+
+### 6. Run tests
+
 ```bash
 npm test
 ```
-Executes mathematical minor unit verification, spending limit checks, and API health assertions.
+
+Mock-based tests validate application logic but do not establish successful real PayPal or Supabase operations.
 
 ---
 
-## 5. Under 3-Minute Hackathon Demo Sequence
+## 11. Installing SARAL Companion
 
-Follow these steps for an optimal judge demonstration:
+SARAL Companion is distributed as a Chrome Manifest V3 extension.
 
-1. **Access Welcome Screen (`0:00 - 0:30`)**:
-   - Open `http://localhost:3000` (or `saral.html`).
-   - Click **"Skip straight to Dashboard (Prototype Demo)"** for instant access, or create an account with 12+ char password verification and numeric OTP.
-2. **Interact with AI Agent (`0:30 - 1:00`)**:
-   - Click **"Ask SARAL"** in the top navigation.
-   - Enter: `"Book 2 cinema tickets for Dune 2 tonight"`.
-   - Observe how the AI refuses to charge funds autonomously and generates a structured proposal with merchant details ($38.00) within configured spending caps.
-3. **Trigger Trust Gate (`1:00 - 1:45`)**:
-   - Click **"Review in Trust Gate →"**.
-   - Review the 4-point verification shield: 0% price drift, $500 guardrail, merchant validation, and explicit confirmation.
-   - Click **"Approve & Authorize $38.00 (PayPal Protected)"**.
-4. **Experience PayPal Pre-Auth Hold Lifecycle (`1:45 - 2:30`)**:
-   - View the active **PayPal Authorization Hold** state with Authorization ID.
-   - Click **"Finalize & Capture Payment"** to simulate ticket fulfillment and capture.
-   - Download the verified receipt or view the updated entry in the **Activity Ledger**.
-   - Optionally test **"Cancel & Void Pre-Auth Hold"** to prove that $0.00 is charged when an order or rental deposit is cancelled.
-5. **Switch to SARAL Business (`2:30 - 3:00`)**:
-   - Click **"Business"** in the workspace switcher.
-   - Inspect **Canonical Inventory** and **Buyer Memory CRM** (Marcus Vance / Leica M3).
-   - Show how the dual-workspace architecture connects personal everyday transactions with reseller commerce.
+### Local installation
+
+1. Start the SARAL backend with the required environment configuration.
+2. Open Chrome.
+3. Navigate to:
+
+```text
+chrome://extensions
+```
+
+4. Enable **Developer mode**.
+5. Select **Load unpacked**.
+6. Choose the repository's `extension/` directory.
+7. Open the SARAL Companion popup.
+8. Sign in to SARAL and initiate the pairing workflow.
+9. Complete the pairing process using the displayed code.
+10. Verify the connection and explore the available Companion features.
+
+### Companion workflow
+
+```mermaid
+flowchart TD
+    A["SARAL Account Login"] --> B["Generate Pairing Code"]
+    B --> C["Enter Code in Companion"]
+    C --> D["Secure Credential Exchange"]
+    D --> E["Authenticated Companion Session"]
+
+    E --> F["Merchant Detection"]
+    E --> G["Rewards"]
+    E --> H["Subscriptions"]
+    E --> I["Password Guardian"]
+    E --> J["Card Footprint"]
+    E --> K["Payment Intelligence"]
+
+    K --> L["Backend Authorization"]
+    L --> M["Verified Transaction Information"]
+```
+
+The extension uses a dedicated authentication flow and communicates with the backend for protected data.
+
+Its financial operations remain subject to backend authorization and the Trust Gate.
+
+---
+
+## 12. Hackathon Positioning — PayPal + AI
+
+SARAL is designed around the intersection of agentic commerce, AI-assisted decision-making and secure payment execution.
+
+Its central proposition is that AI-powered commerce should not require users to surrender control over financial decisions.
+
+### Award categories we are targeting
+
+| Category | Why SARAL fits |
+|---|---|
+| **Best Use of PayPal + AI** | PayPal authorization and transaction operations are integrated into an AI-assisted commerce workflow with explicit user approval. |
+| **Best Use of Agentic Commerce** | The AI interprets intent, prepares structured proposals and coordinates a transaction workflow without unrestricted payment authority. |
+| **Most Impactful** | Addresses trust, transparency and unauthorized financial commitment risks in emerging agentic commerce experiences. |
+| **Most Creative** | Uses an authorization-first Trust Gate to separate transaction preparation, verification and payment execution. |
+
+### What makes SARAL different?
+
+Many AI commerce experiences focus on helping users discover products or automate checkout.
+
+SARAL focuses on the financial trust layer that should exist between an AI recommendation and a real-world payment.
+
+Its differentiation comes from combining:
+
+1. Conversational AI and structured transaction proposals.
+2. Price and merchant verification.
+3. Configurable spending guardrails.
+4. PayPal authorization-first payment processing.
+5. Explicit user approval.
+6. Capture and void based on transaction outcomes.
+7. An auditable activity ledger.
+8. Browser-level commerce assistance through SARAL Companion.
+
+**Our positioning: SARAL does not simply enable AI to buy things. It introduces a user-controlled financial authorization layer for agentic commerce.**
+
+---
+
+## 13. Development Roadmap
+
+Potential future extensions include:
+
+- Additional service-provider integrations.
+- More merchant verification signals.
+- Enhanced AI-assisted transaction analysis.
+- Improved subscription intelligence.
+- Expanded payment reconciliation.
+- Advanced fraud and anomaly detection.
+- More sophisticated reseller analytics.
+- Additional browser and device integrations.
+- Broader merchant rewards coverage.
+
+---
+
+## 14. Project Vision
+
+SARAL is built around one principle:
+
+**The future of commerce should be intelligent without taking control away from people.**
+
+AI should make everyday services easier to discover and use. Payment infrastructure should make financial operations reliable. Users should understand what they are approving and retain control over their money.
+
+By combining AI-assisted service discovery, a user-controlled PayPal Trust Gate, connected mini-apps and browser-level commerce intelligence, SARAL aims to make agentic commerce more transparent, accountable and trustworthy.
 
 ---
 
@@ -164,3 +680,6 @@ Follow these steps for an optimal judge demonstration:
 
 SARAL is open-source software licensed under the [MIT License](LICENSE).
 
+See the `LICENSE` file for details.
+
+**Built with a focus on intelligent automation, payment transparency and user-controlled commerce.**
