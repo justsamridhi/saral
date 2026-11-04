@@ -54,6 +54,17 @@ app.use(cors({
 
 app.use(express.json());
 
+// Serve static assets (images, icons, logos, etc.)
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
+
+// Serve browser extension static files
+app.use('/extension', express.static(path.join(__dirname, 'extension')));
+
+// Serve the Supabase client-side config explicitly (needed by saral.html)
+app.get('/supabase-config.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'supabase-config.js'));
+});
+
 // Block direct static access to sensitive backend files and configs
 app.use((req, res, next) => {
   const basename = path.basename(req.path).toLowerCase();
@@ -5820,6 +5831,15 @@ app.post('/api/companion/pair', async (req, res) => {
 
 // Root route: Serve saral.html
 app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'saral.html'));
+});
+
+// SPA catch-all: serve saral.html for any non-API GET route (supports page refresh / direct navigation)
+app.get('*', (req, res, next) => {
+  // Only intercept non-API, non-asset routes
+  if (req.path.startsWith('/api/') || req.path.startsWith('/assets/') || req.path.startsWith('/extension/')) {
+    return next();
+  }
   res.sendFile(path.join(__dirname, 'saral.html'));
 });
 
