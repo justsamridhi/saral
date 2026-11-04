@@ -523,6 +523,21 @@
     setupPassivePasswordInspection();
   }
 
+  // Listen for pairing event broadcast from SARAL web app (saral.html)
+  window.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SARAL_EXTENSION_PAIR') {
+      const { token, user } = event.data;
+      if (token && typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({
+          type: 'SARAL_AUTH_STATE_CHANGED',
+          token,
+          user,
+          isAuthenticated: true
+        });
+      }
+    }
+  });
+
   // Real-time toggle change sync
   if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener((changes, area) => {

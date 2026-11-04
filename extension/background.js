@@ -337,11 +337,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
-  // 9. Auth State Changed
+  // 9. Auth State Changed (Supports web app instant pair handoff)
   if (message.type === 'SARAL_AUTH_STATE_CHANGED') {
-    updateGlobalBadge(Boolean(message.isAuthenticated));
-    sendResponse({ success: true });
-    return false;
+    (async () => {
+      try {
+        if (message.token) {
+          await SaralStorage.setToken(message.token);
+        }
+        if (message.user) {
+          await SaralStorage.setUser(message.user);
+        }
+        updateGlobalBadge(Boolean(message.isAuthenticated));
+        sendResponse({ success: true });
+      } catch (err) {
+        console.warn('[SARAL_AUTH_STATE_CHANGED Error]', err);
+        sendResponse({ success: false, error: err.message });
+      }
+    })();
+    return true;
   }
 
   // 10. Query active tab domain

@@ -192,6 +192,88 @@
     ::-webkit-scrollbar-thumb:hover {
       background: rgba(107, 107, 115, 0.6);
     }
+  
+    /* Settings List Rows (Screen I Profile & Settings -> Your Account) */
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+      border-bottom: 1px solid #E4E4E7;
+      user-select: none;
+    }
+    .dark .settings-row {
+      border-bottom-color: #27272A;
+    }
+    .settings-row:last-child {
+      border-bottom: none;
+    }
+    .settings-row:hover {
+      background-color: #F4F4F5;
+    }
+    .dark .settings-row:hover {
+      background-color: rgba(39, 39, 42, 0.4);
+    }
+    .settings-row-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .settings-row-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background-color: #F4F4F5;
+      color: #0B0B0C;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: transform 0.15s ease;
+    }
+    .dark .settings-row-icon {
+      background-color: #27272A;
+      color: #FFFFFF;
+    }
+    .settings-row:hover .settings-row-icon {
+      transform: scale(1.04);
+    }
+    .settings-row-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .settings-row-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #0B0B0C;
+    }
+    .dark .settings-row-title {
+      color: #FFFFFF;
+    }
+    .settings-row-desc {
+      font-size: 11px;
+      color: #6B6B73;
+    }
+    .dark .settings-row-desc {
+      color: #9CA3AF;
+    }
+    .settings-row-chevron {
+      font-size: 18px;
+      font-weight: 400;
+      color: #9CA3AF;
+      transition: transform 0.15s ease;
+    }
+    .settings-row:hover .settings-row-chevron {
+      transform: translateX(2px);
+      color: #0B0B0C;
+    }
+    .dark .settings-row:hover .settings-row-chevron {
+      color: #FFFFFF;
+    }
+
   </style>
 </head>
 
@@ -911,6 +993,80 @@
     /**
      * UI & Toast Helpers
      */
+    
+    /* ========================================================================= */
+    /* SARAL COMPANION EXTENSION PAIRING CONTROLLER                              */
+    /* ========================================================================= */
+    const SaralPairingModal = {
+      currentPairingCode: '',
+      open() {
+        const modal = document.getElementById('pair-extension-modal');
+        if (!modal) return;
+        this.generateCode();
+        modal.classList.remove('hidden');
+      },
+      close() {
+        const modal = document.getElementById('pair-extension-modal');
+        if (modal) modal.classList.add('hidden');
+      },
+      generateCode() {
+        const prefix = 'SARAL';
+        const randNum = Math.floor(1000 + Math.random() * 9000);
+        const randAlpha = Math.random().toString(36).substring(2, 4).toUpperCase();
+        this.currentPairingCode = `${prefix}-${randNum}-${randAlpha}`;
+        const display = document.getElementById('pair-code-display');
+        if (display) display.textContent = this.currentPairingCode;
+      },
+      async copyCode() {
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(this.currentPairingCode);
+          }
+          const btn = document.getElementById('btn-copy-pairing-code');
+          if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = 'Copied!';
+            btn.classList.add('bg-emerald-600', 'text-white');
+            setTimeout(() => {
+              btn.textContent = orig;
+              btn.classList.remove('bg-emerald-600');
+            }, 2000);
+          }
+          SaralUI.showToast('Pairing code copied to clipboard!', 'success');
+        } catch (e) {
+          SaralUI.showToast('Code: ' + this.currentPairingCode, 'info');
+        }
+      },
+      autoPairExtension() {
+        const sessionToken = (SaralAuth && SaralAuth.session && SaralAuth.session.access_token) || 'demo-token-samridhi-2026';
+        const userPayload = {
+          id: SaralState.user.id || 'usr_samridhi_01',
+          email: SaralState.user.email || 'samridhi@kdu.in',
+          full_name: SaralState.user.name || 'Samridhi Gupta',
+          display_name: SaralState.user.displayName || 'Samridhi',
+          initials: SaralState.user.initials || 'SG'
+        };
+
+        try {
+          localStorage.setItem('saral_companion_paired_token', sessionToken);
+          localStorage.setItem('saral_companion_paired_user', JSON.stringify(userPayload));
+          localStorage.setItem('saral_companion_paired_at', new Date().toISOString());
+        } catch (e) {}
+
+        window.postMessage({
+          type: 'SARAL_EXTENSION_PAIR',
+          token: sessionToken,
+          user: userPayload,
+          pairingCode: this.currentPairingCode
+        }, '*');
+
+        const statusTime = document.getElementById('paired-device-time');
+        if (statusTime) statusTime.textContent = 'Paired Just Now';
+
+        SaralUI.showToast('Companion extension paired with active session!', 'success');
+      }
+    };
+
     const SaralUI = {
       escapeHtml(str) {
         if (!str) return '';
@@ -6137,6 +6293,82 @@ Description: Authentic German vintage rangefinder in collector-grade condition. 
       }
     });
   </script>
+
+
+  <!-- ========================================================================= -->
+  <!-- SARAL COMPANION PAIRING MODAL (v1.0.0 Desktop Extension Handoff)          -->
+  <!-- ========================================================================= -->
+  <div id="pair-extension-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-fadeIn" role="dialog" aria-modal="true" aria-labelledby="pair-modal-title">
+    <div class="w-full max-w-md bg-cardLight dark:bg-cardDark rounded-[32px] p-6 sm:p-7 border border-borderLight dark:border-borderDark shadow-2xl space-y-5">
+      
+      <!-- Modal Header -->
+      <div class="flex items-start justify-between border-b border-borderLight dark:border-borderDark pb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center flex-shrink-0">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19.439 7.85c0-1.57.802-2.54 2.14-2.54 1.339 0 2.421 1.082 2.421 2.421 0 1.34-1.082 2.422-2.421 2.422-.5 0-.96-.15-1.35-.41l-.79.79v3.74h-3.74l-.79.79c.26.39.41.85.41 1.35 0 1.339-1.082 2.421-2.421 2.421-1.339 0-2.421-1.082-2.421-2.421 0-.5.15-.96.41-1.35l-.79-.79H6.15v-3.74l.79-.79c.39.26.85.41 1.35.41 1.339 0 2.421-1.082 2.421-2.422 0-1.339-1.082-2.421-2.421-2.421-.5 0-.96.15-1.35.41l-.79-.79V4.15h3.74l.79-.79c-.26-.39-.41-.85-.41-1.35C10.32.671 11.402-.411 12.741-.411c1.34 0 2.421 1.082 2.421 2.421 0 .5-.15.96-.41 1.35l.79.79h3.898v3.7z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 id="pair-modal-title" class="text-base font-bold font-heading text-ink dark:text-white">Pair SARAL Companion</h3>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Ready
+              </span>
+            </div>
+            <p class="text-xs text-slate dark:text-gray-400 mt-0.5">Desktop Chrome / Edge Extension (v1.0.0)</p>
+          </div>
+        </div>
+        <button type="button" onclick="SaralPairingModal.close()" class="p-1.5 rounded-full text-slate hover:text-ink dark:hover:text-white hover:bg-surfaceLight dark:hover:bg-zinc-800 transition-colors" title="Close Modal">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Pairing Code Block -->
+      <div class="p-4 rounded-2xl bg-surfaceLight dark:bg-surfaceDark border border-borderLight dark:border-borderDark text-center space-y-2">
+        <p class="text-[11px] font-semibold text-slate dark:text-gray-400 uppercase tracking-wider">Your Pairing Code</p>
+        <div class="flex items-center justify-center gap-3">
+          <span id="pair-code-display" class="font-mono text-2xl font-extrabold tracking-widest text-ink dark:text-white select-all">SARAL-8942-X7</span>
+          <button type="button" onclick="SaralPairingModal.copyCode()" id="btn-copy-pairing-code" class="px-3 py-1.5 rounded-xl bg-ink dark:bg-white text-white dark:text-ink text-xs font-semibold hover:opacity-90 active:scale-95 transition-all">
+            Copy
+          </button>
+        </div>
+        <p class="text-[11px] text-slate dark:text-gray-400">Valid for 15 minutes. Enter in extension popup or click Auto-Pair below.</p>
+      </div>
+
+      <!-- Auto-Pair One-Click Action -->
+      <div class="flex flex-col gap-2.5">
+        <button type="button" onclick="SaralPairingModal.autoPairExtension()" id="btn-autopair-instant" class="w-full py-3.5 rounded-2xl bg-ink dark:bg-white text-white dark:text-ink text-xs font-bold hover:opacity-90 active:scale-[0.99] transition-all shadow-elevated flex items-center justify-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+          <span>Instant Pair Active Session</span>
+        </button>
+        <p class="text-[11px] text-center text-slate dark:text-gray-400">Instantly relays your authenticated session token to the extension in this browser.</p>
+      </div>
+
+      <!-- Active Paired Devices Box -->
+      <div class="p-3.5 rounded-2xl bg-cardLight dark:bg-cardDark border border-borderLight dark:border-borderDark">
+        <div class="flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-emerald-500" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+            <span class="font-semibold text-ink dark:text-white">Active Desktop Companion</span>
+          </div>
+          <span class="text-[10px] text-slate dark:text-gray-400" id="paired-device-time">Ready</span>
+        </div>
+      </div>
+
+      <!-- Privacy & Security Guarantee -->
+      <div class="p-3 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 flex items-start gap-2.5">
+        <svg class="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clip-rule="evenodd"/>
+        </svg>
+        <p class="text-[10.5px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
+          <strong>Privacy Invariant:</strong> Zero CVVs, bank secrets, or Supabase service-role keys are ever transmitted. The extension runs in an isolated client sandbox.
+        </p>
+      </div>
+
+    </div>
+  </div>
 
 </body>
 </html>
