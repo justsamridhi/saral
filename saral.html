@@ -2456,16 +2456,22 @@
             bubble.classList.add('bg-white', 'capsule-popout', 'shadow-popout');
             bubble.classList.remove('bg-transparent');
             bubble.querySelectorAll('svg, img').forEach(el => {
-              if (el.tagName === 'svg') el.classList.remove('text-white');
-              if (el.tagName === 'svg') el.classList.add('text-ink');
+              if (el.tagName === 'svg') { el.classList.remove('text-white'); el.classList.add('text-ink'); }
+              if (el.tagName === 'IMG') {
+                const asset = el.getAttribute('data-asset');
+                if (asset) el.src = `assets/Light_Theme/${asset}.png`;
+              }
             });
             if (label) label.classList.add('font-bold', 'opacity-100');
           } else {
             bubble.classList.remove('bg-white', 'capsule-popout', 'shadow-popout');
             bubble.classList.add('bg-transparent');
             bubble.querySelectorAll('svg, img').forEach(el => {
-              if (el.tagName === 'svg') el.classList.add('text-white');
-              if (el.tagName === 'svg') el.classList.remove('text-ink');
+              if (el.tagName === 'svg') { el.classList.add('text-white'); el.classList.remove('text-ink'); }
+              if (el.tagName === 'IMG') {
+                const asset = el.getAttribute('data-asset');
+                if (asset) el.src = `assets/Dark_Theme/${asset}.png`;
+              }
             });
             if (label) label.classList.remove('font-bold', 'opacity-100');
           }
