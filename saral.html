@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" class="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SARAL — Dual-Product Ecosystem (Personal & Business)</title>
+  <title>SARAL â€” Dual-Product Ecosystem (Personal & Business)</title>
   <link rel="icon" type="image/png" href="assets/logo_black.png">
   <meta name="description" content="Everyday digital services and AI-powered reseller intelligence, unified under the SARAL Trust Gate.">
 
@@ -13,7 +13,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- Supabase Client Configuration & Official JavaScript v2 SDK -->
-  <script src="supabase-config.js"></script>
+  <script>
+  window.SARAL_API_URL = 'https://saral-xxve.onrender.com';
+</script>
+    <script src="supabase-config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <!-- Tailwind CSS CDN with configuration -->
@@ -366,14 +369,14 @@
                   <img data-asset="home" src="assets/Light_Theme/home.png" class="w-3.5 h-3.5 object-contain" alt="">
                   SARAL Personal
                 </span>
-                <span id="ws-check-personal" class="text-success text-xs font-bold">✓</span>
+                <span id="ws-check-personal" class="text-success text-xs font-bold">âœ“</span>
               </button>
               <button onclick="SaralWorkspace.set('business'); SaralUI.toggleProfileMenu();" class="w-full text-left px-3 py-1.5 text-xs rounded-xl hover:bg-surfaceLight dark:hover:bg-graphite/40 flex items-center justify-between">
                 <span class="flex items-center gap-2">
                   <img data-asset="shop" src="assets/Light_Theme/shop.png" class="w-3.5 h-3.5 object-contain" alt="">
                   SARAL Business
                 </span>
-                <span id="ws-check-business" class="text-success text-xs font-bold hidden">✓</span>
+                <span id="ws-check-business" class="text-success text-xs font-bold hidden">âœ“</span>
               </button>
             </div>
 
@@ -713,11 +716,11 @@
 
       // Business CRM: Buyer Memory
       buyers: [
-        { id: 'BUY-01', name: 'Marcus Vance', email: 'marcus.vance@studio.org', preferredCategory: 'Cameras & Lenses', budgetRange: '$1,000 – $2,500', pastPurchases: 2, totalSpent: 2600.00, lastInteraction: '3 days ago', notes: 'Leica enthusiast, collects vintage M-mount optics. Fast payer.' },
-        { id: 'BUY-02', name: 'Elena Rostova', email: 'elena.rostova@audioeng.net', preferredCategory: 'Audio & Studio Gear', budgetRange: '$200 – $600', pastPurchases: 1, totalSpent: 340.00, lastInteraction: '1 week ago', notes: 'Music producer. Prefers noise-canceling closed backs.' },
-        { id: 'BUY-03', name: 'David Chen', email: 'd.chen@technova.io', preferredCategory: 'Computers & Apple', budgetRange: '$1,200 – $2,000', pastPurchases: 3, totalSpent: 4200.00, lastInteraction: '2 weeks ago', notes: 'Equips small design teams with M-series Macs.' },
-        { id: 'BUY-04', name: 'Priya Sharma', email: 'priya.sharma@designlab.co', preferredCategory: 'Ergonomic Furniture', budgetRange: '$500 – $800', pastPurchases: 0, totalSpent: 0.00, lastInteraction: 'Yesterday', notes: 'Interested in Herman Miller posturefit lumbar support.' },
-        { id: 'BUY-05', name: 'Jordan Lee', email: 'jordan.lee@kicksdaily.com', preferredCategory: 'Footwear & Streetwear', budgetRange: '$150 – $350', pastPurchases: 4, totalSpent: 790.00, lastInteraction: '5 days ago', notes: 'Sneaker collector (Size 10.5 strictly).' }
+        { id: 'BUY-01', name: 'Marcus Vance', email: 'marcus.vance@studio.org', preferredCategory: 'Cameras & Lenses', budgetRange: '$1,000 â€“ $2,500', pastPurchases: 2, totalSpent: 2600.00, lastInteraction: '3 days ago', notes: 'Leica enthusiast, collects vintage M-mount optics. Fast payer.' },
+        { id: 'BUY-02', name: 'Elena Rostova', email: 'elena.rostova@audioeng.net', preferredCategory: 'Audio & Studio Gear', budgetRange: '$200 â€“ $600', pastPurchases: 1, totalSpent: 340.00, lastInteraction: '1 week ago', notes: 'Music producer. Prefers noise-canceling closed backs.' },
+        { id: 'BUY-03', name: 'David Chen', email: 'd.chen@technova.io', preferredCategory: 'Computers & Apple', budgetRange: '$1,200 â€“ $2,000', pastPurchases: 3, totalSpent: 4200.00, lastInteraction: '2 weeks ago', notes: 'Equips small design teams with M-series Macs.' },
+        { id: 'BUY-04', name: 'Priya Sharma', email: 'priya.sharma@designlab.co', preferredCategory: 'Ergonomic Furniture', budgetRange: '$500 â€“ $800', pastPurchases: 0, totalSpent: 0.00, lastInteraction: 'Yesterday', notes: 'Interested in Herman Miller posturefit lumbar support.' },
+        { id: 'BUY-05', name: 'Jordan Lee', email: 'jordan.lee@kicksdaily.com', preferredCategory: 'Footwear & Streetwear', budgetRange: '$150 â€“ $350', pastPurchases: 4, totalSpent: 790.00, lastInteraction: '5 days ago', notes: 'Sneaker collector (Size 10.5 strictly).' }
       ],
 
       // Business Orders & PayPal Payments (Sandbox Prototypes)
@@ -942,7 +945,7 @@
           badge.onclick = () => SaralRouter.navigate('biz-orders');
           badge.innerHTML = `
             <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>PayPal Sandbox Verified • $${SaralState.business.stats.monthlyRevenue.toLocaleString()} MTD</span>
+            <span>PayPal Sandbox Verified â€¢ $${SaralState.business.stats.monthlyRevenue.toLocaleString()} MTD</span>
           `;
         } else {
           badge.className = 'hidden xl:flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-semibold cursor-pointer';
@@ -1123,7 +1126,7 @@
             </div>
 
             <button type="button" onclick="SaralPairingModal.setTab('pair')" class="w-full py-3 rounded-2xl bg-ink dark:bg-white text-white dark:text-ink text-xs font-bold hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-1.5 shadow-subtle">
-              <span>Extension Loaded? Continue to Pairing →</span>
+              <span>Extension Loaded? Continue to Pairing â†’</span>
             </button>
           `;
         } else {
@@ -1184,7 +1187,7 @@
             </div>
 
             <button type="button" onclick="SaralPairingModal.setTab('pair')" class="w-full py-3 rounded-2xl bg-ink dark:bg-white text-white dark:text-ink text-xs font-bold hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-1.5 shadow-subtle">
-              <span>Installed? Continue to Pairing →</span>
+              <span>Installed? Continue to Pairing â†’</span>
             </button>
           `;
         }
@@ -1239,7 +1242,7 @@
         }
       },
       async autoPairExtension() {
-        // Always derive from the live authenticated session — no demo defaults
+        // Always derive from the live authenticated session â€” no demo defaults
         const sessionToken = (SaralAuth && SaralAuth.session && SaralAuth.session.access_token) || null;
         if (!sessionToken && !SaralState.user.id) {
           SaralUI.showToast('Please sign in before pairing the extension.', 'error');
@@ -1509,7 +1512,7 @@
         try {
           const cleanDisplayName = displayName.trim();
           const cleanFullName = (fullName || SaralState.user.name || '').trim();
-          const avatarUrl = SaralAuthUI.selectedAvatar && SaralAuthUI.selectedAvatar !== '✦' 
+          const avatarUrl = SaralAuthUI.selectedAvatar && SaralAuthUI.selectedAvatar !== 'âœ¦' 
             ? `avatar:emoji:${SaralAuthUI.selectedAvatar}` 
             : null;
 
@@ -1540,7 +1543,7 @@
           SaralState.user.name = cleanFullName || cleanDisplayName;
           SaralState.user.displayName = cleanDisplayName;
           SaralState.user.initials = cleanDisplayName.split(' ').map(n=>n[0]).join('').substring(0, 2).toUpperCase();
-          if (SaralAuthUI.selectedAvatar && SaralAuthUI.selectedAvatar !== '✦') {
+          if (SaralAuthUI.selectedAvatar && SaralAuthUI.selectedAvatar !== 'âœ¦') {
             SaralState.user.avatarEmoji = SaralAuthUI.selectedAvatar;
           }
 
@@ -2260,20 +2263,20 @@
      * - Special symbols
      */
     const SaralAuthUI = {
-      selectedAvatar: '✦',
+      selectedAvatar: 'âœ¦',
 
       updateAvatarPreview(name) {
         const el = document.getElementById('preview-avatar-initials');
         if (!el) return;
-        if (this.selectedAvatar && this.selectedAvatar !== '✦') {
+        if (this.selectedAvatar && this.selectedAvatar !== 'âœ¦') {
           el.textContent = this.selectedAvatar;
           return;
         }
         const clean = (name || '').trim();
         if (!clean) {
-          el.textContent = '✦';
+          el.textContent = 'âœ¦';
         } else {
-          el.textContent = clean.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || '✦';
+          el.textContent = clean.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'âœ¦';
         }
       },
 
@@ -2337,7 +2340,7 @@
             el.innerHTML = '<svg class="w-3 h-3 stroke-[3] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> ' + label;
           } else {
             el.className = 'flex items-center gap-1 text-[11px] font-medium text-slate dark:text-zinc-500 transition-colors';
-            el.innerHTML = '<span class="w-3 h-3 rounded-full border border-borderLight dark:border-borderDark flex items-center justify-center text-[8px] flex-shrink-0">•</span> ' + label;
+            el.innerHTML = '<span class="w-3 h-3 rounded-full border border-borderLight dark:border-borderDark flex items-center justify-center text-[8px] flex-shrink-0">â€¢</span> ' + label;
           }
         };
 
@@ -2581,14 +2584,14 @@
 
               <div class="mt-8 pt-2">
                 <div class="flex items-center justify-between">
-                  <!-- Stepper Indicator Dots (● ○ ○) -->
+                  <!-- Stepper Indicator Dots (â— â—‹ â—‹) -->
                   <div class="flex items-center gap-1.5">
                     <span class="w-2.5 h-2.5 rounded-full bg-ink dark:bg-white"></span>
                     <span class="w-2 h-2 rounded-full bg-slate-300 dark:bg-zinc-700"></span>
                     <span class="w-2 h-2 rounded-full bg-slate-300 dark:bg-zinc-700"></span>
                   </div>
 
-                  <!-- Circular Action Button with Arrow (→) -->
+                  <!-- Circular Action Button with Arrow (â†’) -->
                   <button onclick="SaralRouter.navigate('signup')" class="w-13 h-13 rounded-full bg-ink dark:bg-white text-white dark:text-ink flex items-center justify-center shadow-elevated hover:scale-105 active:scale-95 transition-all" title="Create your account">
                     <svg class="w-6 h-6 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                   </button>
@@ -2707,19 +2710,19 @@
                 <!-- Live Supabase Password Policy Checklist -->
                 <div class="mt-2 p-2.5 rounded-xl bg-surfaceLight/40 dark:bg-surfaceDark/50 border border-borderLight/60 dark:border-borderDark/60 grid grid-cols-2 gap-1.5 text-[10px]">
                   <div id="su-req-minlen" data-label="12+ chars" class="flex items-center gap-1 text-slate dark:text-zinc-500 font-medium">
-                    <span class="w-3 h-3 rounded-full border border-borderLight dark:border-borderDark flex items-center justify-center text-[8px]">•</span> 12+ chars
+                    <span class="w-3 h-3 rounded-full border border-borderLight dark:border-borderDark flex items-center justify-center text-[8px]">â€¢</span> 12+ chars
                   </div>
                   <div id="su-req-upper" data-label="Uppercase" class="flex items-center gap-1 text-slate dark:text-zinc-500 font-medium">
-                    <span class="w-3 h-3 rounded-full border border-borderLight dark:border-borderDark flex items-center justify-center text-[8px]">•</span> Uppercase
+                    <span class="w-3 h-3 rounded-full border border-borderLight dark:border-borderDark flex items-center justify-center text-[8px]">â€¢</span> Uppercase
                   </div>
                   <div id="su-req-lower" data-label="Lowercase" class="flex items-center gap-1 text-slate dark:text-zinc-500 font-medium">
-                    <span class="w-3 h-3 rounded-full border border-borderLight dark:border-borderDark flex items-center justify-center text-[8px]">•</span> Lowercase
+                    <span class="w-3 h-3 rounded-full border border-borderLight dark:border-borderDark flex items-center justify-center text-[8px]">â€¢</span> Lowercase
                   </div>
                   <div id="su-req-num" data-label="Number (0-9)" class="flex items-center gap-1 text-slate dark:text-zinc-500 font-medium">
-                    <span class="w-3 h-3 rounded-full border border-borderLight dark:border-borderDark flex items-center justify-center text-[8px]">•</span> Number (0-9)
+                    <span class="w-3 h-3 rounded-full border border-borderLight dark:border-borderDark flex items-center justify-center text-[8px]">â€¢</span> Number (0-9)
                   </div>
                   <div id="su-req-sym" data-label="Symbol (!@#$)" class="col-span-2 flex items-center gap-1 text-slate dark:text-zinc-500 font-medium">
-                    <span class="w-3 h-3 rounded-full border border-borderLight dark:border-borderDark flex items-center justify-center text-[8px]">•</span> Special symbol
+                    <span class="w-3 h-3 rounded-full border border-borderLight dark:border-borderDark flex items-center justify-center text-[8px]">â€¢</span> Special symbol
                   </div>
                 </div>
               </div>
@@ -2905,7 +2908,7 @@
 
           <div class="relative z-10 w-full bg-cardLight dark:bg-cardDark rounded-[38px] overflow-hidden flex flex-col p-7 sm:p-8 text-center transition-all duration-300 shadow-2xl border border-black/5 dark:border-white/10">
             
-            <!-- Top Navigation & Stepper Header (● ─────── ○) -->
+            <!-- Top Navigation & Stepper Header (â— â”€â”€â”€â”€â”€â”€â”€ â—‹) -->
             <div class="flex items-center justify-between mb-5">
               <button onclick="SaralRouter.navigate('signup')" class="p-1.5 -ml-1.5 rounded-full hover:bg-surfaceLight dark:hover:bg-zinc-800 text-slate hover:text-ink dark:hover:text-white transition-colors" title="Back to sign up">
                 <svg class="w-5 h-5 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
@@ -2968,7 +2971,7 @@
             <!-- Back to change email -->
             <div class="mt-5 pt-3.5 border-t border-borderLight/60 dark:border-borderDark/60">
               <button onclick="SaralRouter.navigate('signup')" class="text-xs text-slate hover:text-ink dark:hover:text-white transition-colors">
-                ← Change email address
+                â† Change email address
               </button>
             </div>
 
@@ -2988,7 +2991,7 @@
       })() || 'Alex Johnson';
       const initialDisplayName = initialName.split(' ')[0] || 'Alex';
       const initialInitials = initialName.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'AJ';
-      const currentAvatarEmoji = SaralState.user.avatarEmoji || SaralAuthUI.selectedAvatar || '✦';
+      const currentAvatarEmoji = SaralState.user.avatarEmoji || SaralAuthUI.selectedAvatar || 'âœ¦';
 
       return `
       <div class="relative min-h-[92vh] flex items-center justify-center py-6 px-4 overflow-hidden" style="background: radial-gradient(ellipse 85% 70% at 50% 35%, rgba(255, 255, 255, 0.98) 0%, rgba(243, 244, 247, 0.90) 45%, rgba(228, 230, 236, 0.96) 100%);">
@@ -3000,7 +3003,7 @@
 
           <div class="relative z-10 w-full bg-cardLight dark:bg-cardDark rounded-[38px] overflow-hidden flex flex-col p-7 sm:p-8 transition-all duration-300 shadow-2xl border border-black/5 dark:border-white/10">
             
-            <!-- Top Navigation & Stepper Header (● ─────── ● ─────── ○) -->
+            <!-- Top Navigation & Stepper Header (â— â”€â”€â”€â”€â”€â”€â”€ â— â”€â”€â”€â”€â”€â”€â”€ â—‹) -->
             <div class="flex items-center justify-between mb-5">
               <button onclick="SaralRouter.navigate('verify-otp')" class="p-1.5 -ml-1.5 rounded-full hover:bg-surfaceLight dark:hover:bg-zinc-800 text-slate hover:text-ink dark:hover:text-white transition-colors" title="Back to verification">
                 <svg class="w-5 h-5 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
@@ -3023,7 +3026,7 @@
                 <svg class="absolute -top-1.5 -right-1.5 w-4 h-4 text-ink dark:text-white pointer-events-none" viewBox="0 0 16 16" fill="none">
                   <path d="M4 12L1.5 14.5M10.5 8.5L14 7M11 2L10.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
-                ${currentAvatarEmoji !== '✦' ? currentAvatarEmoji : initialInitials}
+                ${currentAvatarEmoji !== 'âœ¦' ? currentAvatarEmoji : initialInitials}
               </div>
               <h1 class="text-2xl font-extrabold font-heading text-ink dark:text-white tracking-tight">Your profile</h1>
               <p class="text-xs text-slate dark:text-gray-400 mt-1">Tell us a bit about yourself to personalise saral.</p>
@@ -3069,17 +3072,17 @@
                 <label class="block text-xs font-semibold text-slate dark:text-gray-300 mb-1.5">Workspace focus</label>
                 <div class="grid grid-cols-3 gap-2">
                   <button type="button" onclick="SaralOnboarding.selectPlan('personal')" id="plan-card-personal" class="p-2.5 rounded-2xl border-2 border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white text-center transition-all">
-                    <div class="text-sm mb-0.5">🏠</div>
+                    <div class="text-sm mb-0.5">ðŸ </div>
                     <div class="text-xs font-bold text-ink dark:text-white">Personal</div>
                     <div class="text-[9px] text-slate leading-tight mt-0.5">Everyday services</div>
                   </button>
                   <button type="button" onclick="SaralOnboarding.selectPlan('business')" id="plan-card-business" class="p-2.5 rounded-2xl border-2 border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white text-center transition-all">
-                    <div class="text-sm mb-0.5">💼</div>
+                    <div class="text-sm mb-0.5">ðŸ’¼</div>
                     <div class="text-xs font-bold text-ink dark:text-white">Business</div>
                     <div class="text-[9px] text-slate leading-tight mt-0.5">Reseller CRM</div>
                   </button>
                   <button type="button" onclick="SaralOnboarding.selectPlan('both')" id="plan-card-both" class="p-2.5 rounded-2xl border-2 border-ink dark:border-white bg-surfaceLight/50 dark:bg-zinc-800/40 text-center transition-all shadow-subtle">
-                    <div class="text-sm mb-0.5">✦</div>
+                    <div class="text-sm mb-0.5">âœ¦</div>
                     <div class="text-xs font-bold text-ink dark:text-white">Both</div>
                     <div class="text-[9px] text-success font-semibold leading-tight mt-0.5">Personal & Biz</div>
                   </button>
@@ -3106,36 +3109,36 @@
               </button>
             </div>
             <div class="grid grid-cols-4 gap-3 py-2">
-              <button type="button" onclick="SaralAuthUI.selectAvatar('✦', 'Core Monogram')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
-                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">✦</span>
+              <button type="button" onclick="SaralAuthUI.selectAvatar('âœ¦', 'Core Monogram')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
+                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">âœ¦</span>
                 <span class="text-[9px] text-slate dark:text-gray-400 font-medium text-center">Core</span>
               </button>
-              <button type="button" onclick="SaralAuthUI.selectAvatar('⚡', 'Tech Pioneer')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
-                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">⚡</span>
+              <button type="button" onclick="SaralAuthUI.selectAvatar('âš¡', 'Tech Pioneer')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
+                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">âš¡</span>
                 <span class="text-[9px] text-slate dark:text-gray-400 font-medium text-center">Tech</span>
               </button>
-              <button type="button" onclick="SaralAuthUI.selectAvatar('🛡️', 'Trust Gate')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
-                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">🛡️</span>
+              <button type="button" onclick="SaralAuthUI.selectAvatar('ðŸ›¡ï¸', 'Trust Gate')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
+                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">ðŸ›¡ï¸</span>
                 <span class="text-[9px] text-slate dark:text-gray-400 font-medium text-center">Shield</span>
               </button>
-              <button type="button" onclick="SaralAuthUI.selectAvatar('🌿', 'Eco Pathfinder')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
-                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">🌿</span>
+              <button type="button" onclick="SaralAuthUI.selectAvatar('ðŸŒ¿', 'Eco Pathfinder')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
+                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">ðŸŒ¿</span>
                 <span class="text-[9px] text-slate dark:text-gray-400 font-medium text-center">Clean</span>
               </button>
-              <button type="button" onclick="SaralAuthUI.selectAvatar('💼', 'Apex Merchant')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
-                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">💼</span>
+              <button type="button" onclick="SaralAuthUI.selectAvatar('ðŸ’¼', 'Apex Merchant')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
+                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">ðŸ’¼</span>
                 <span class="text-[9px] text-slate dark:text-gray-400 font-medium text-center">Biz</span>
               </button>
-              <button type="button" onclick="SaralAuthUI.selectAvatar('🎬', 'Cinema Patron')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
-                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">🎬</span>
+              <button type="button" onclick="SaralAuthUI.selectAvatar('ðŸŽ¬', 'Cinema Patron')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
+                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">ðŸŽ¬</span>
                 <span class="text-[9px] text-slate dark:text-gray-400 font-medium text-center">Cinema</span>
               </button>
-              <button type="button" onclick="SaralAuthUI.selectAvatar('☕', 'Minimalist')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
-                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">☕</span>
+              <button type="button" onclick="SaralAuthUI.selectAvatar('â˜•', 'Minimalist')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
+                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">â˜•</span>
                 <span class="text-[9px] text-slate dark:text-gray-400 font-medium text-center">Espresso</span>
               </button>
-              <button type="button" onclick="SaralAuthUI.selectAvatar('👑', 'Pioneer')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
-                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">👑</span>
+              <button type="button" onclick="SaralAuthUI.selectAvatar('ðŸ‘‘', 'Pioneer')" class="flex flex-col items-center justify-center p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white hover:bg-surfaceLight/80 dark:hover:bg-zinc-800 transition-all group">
+                <span class="text-2xl mb-1 group-hover:scale-110 transition-transform">ðŸ‘‘</span>
                 <span class="text-[9px] text-slate dark:text-gray-400 font-medium text-center">Crown</span>
               </button>
             </div>
@@ -3164,7 +3167,7 @@
 
           <div class="relative z-10 w-full bg-cardLight dark:bg-cardDark rounded-[38px] overflow-hidden flex flex-col p-7 sm:p-8 transition-all duration-300 shadow-2xl border border-black/5 dark:border-white/10">
             
-            <!-- Top Navigation & Stepper Header (● ─────── ● ─────── ● All 3 Steps Connected) -->
+            <!-- Top Navigation & Stepper Header (â— â”€â”€â”€â”€â”€â”€â”€ â— â”€â”€â”€â”€â”€â”€â”€ â— All 3 Steps Connected) -->
             <div class="flex items-center justify-between mb-5">
               <button onclick="SaralRouter.navigate('profile-setup')" class="p-1.5 -ml-1.5 rounded-full hover:bg-surfaceLight dark:hover:bg-zinc-800 text-slate hover:text-ink dark:hover:text-white transition-colors" title="Back to profile">
                 <svg class="w-5 h-5 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
@@ -3284,7 +3287,7 @@
       const displayName = SaralState.user.displayName || SaralState.user.name.split(' ')[0] || 'Friend';
       const perTx = SaralState.user.perTxLimit || 500;
       const daily = SaralState.user.dailyLimit || 2000;
-      const avatarEmoji = SaralState.user.avatarEmoji || SaralAuthUI.selectedAvatar || '✦';
+      const avatarEmoji = SaralState.user.avatarEmoji || SaralAuthUI.selectedAvatar || 'âœ¦';
 
       return `
       <div class="relative min-h-[92vh] flex items-center justify-center py-6 px-4 overflow-hidden" style="background: radial-gradient(ellipse 85% 70% at 50% 35%, rgba(255, 255, 255, 0.98) 0%, rgba(243, 244, 247, 0.90) 45%, rgba(228, 230, 236, 0.96) 100%);">
@@ -3307,7 +3310,7 @@
               <svg class="absolute -top-2 -right-2 w-5 h-5 text-ink dark:text-white pointer-events-none" viewBox="0 0 16 16" fill="none">
                 <path d="M4 12L1.5 14.5M10.5 8.5L14 7M11 2L10.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
-              <span class="text-3xl">${avatarEmoji !== '✦' ? avatarEmoji : '✦'}</span>
+              <span class="text-3xl">${avatarEmoji !== 'âœ¦' ? avatarEmoji : 'âœ¦'}</span>
             </div>
 
             <!-- Heading & Congratulatory Subtitle -->
@@ -3323,7 +3326,7 @@
               <div class="flex items-center justify-between text-xs pb-2 border-b border-borderLight/60 dark:border-borderDark/60">
                 <span class="text-slate dark:text-gray-400">Workspace</span>
                 <span class="font-bold text-ink dark:text-white flex items-center gap-1.5">
-                  <span>🏠</span> Personal + Business
+                  <span>ðŸ </span> Personal + Business
                 </span>
               </div>
               <div class="flex items-center justify-between text-xs pb-2 border-b border-borderLight/60 dark:border-borderDark/60">
@@ -3344,7 +3347,7 @@
 
             <!-- Launch SARAL Home Button -->
             <button onclick="SaralWorkspace.navigateHome()" class="w-full py-4 rounded-2xl bg-ink dark:bg-white text-white dark:text-ink font-bold text-sm tracking-wide hover:opacity-90 active:scale-[0.99] transition-all shadow-elevated">
-              Continue to SARAL Home →
+              Continue to SARAL Home â†’
             </button>
 
             <p class="text-[11px] text-slate dark:text-gray-400 mt-4">
@@ -3612,7 +3615,7 @@
               </div>
               <h3 class="text-xs font-bold text-ink dark:text-white">No Active Holds</h3>
               <p class="text-[11px] text-slate dark:text-gray-400 mt-1 max-w-xs mx-auto">Pre-authorized deposits for Power Bank or EV Charging will appear here in real-time.</p>
-              <button onclick="SaralRouter.navigate('powerbank')" class="mt-3 px-3.5 py-1.5 rounded-xl border border-borderLight dark:border-borderDark text-[11px] font-semibold text-ink dark:text-white hover:bg-surfaceLight dark:hover:bg-graphite/40 transition-colors">Explore Power Bank →</button>
+              <button onclick="SaralRouter.navigate('powerbank')" class="mt-3 px-3.5 py-1.5 rounded-xl border border-borderLight dark:border-borderDark text-[11px] font-semibold text-ink dark:text-white hover:bg-surfaceLight dark:hover:bg-graphite/40 transition-colors">Explore Power Bank â†’</button>
             </div>
           `;
         }
@@ -3638,7 +3641,7 @@
             <div class="my-4">
               <p class="text-2xl font-black font-heading tabular-nums text-ink dark:text-white">$${amount.toFixed(2)}</p>
               <p class="text-xs font-medium text-slate dark:text-gray-300 mt-0.5">${merchant}</p>
-              <p class="text-[11px] text-slate dark:text-gray-400 mt-1">Rate: ${rate} • Deposit reserved</p>
+              <p class="text-[11px] text-slate dark:text-gray-400 mt-1">Rate: ${rate} â€¢ Deposit reserved</p>
             </div>
 
             <div class="p-3 rounded-xl saral-glass-panel flex items-center justify-between mb-4">
@@ -3668,7 +3671,7 @@
               </div>
               <p class="text-xs font-bold text-ink dark:text-white">No transactions yet</p>
               <p class="text-[11px] text-slate dark:text-gray-400 mt-0.5">Payments authorized through Trust Gate will appear in this ledger.</p>
-              <button onclick="SaralRouter.navigate('apps')" class="mt-3.5 px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink text-xs font-semibold hover:opacity-90 transition-all">Launch a Mini-App →</button>
+              <button onclick="SaralRouter.navigate('apps')" class="mt-3.5 px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink text-xs font-semibold hover:opacity-90 transition-all">Launch a Mini-App â†’</button>
             </div>
           `;
         }
@@ -3693,7 +3696,7 @@
                         <p class="text-xs font-semibold text-ink dark:text-white">${SaralUI.escapeHtml(title)}</p>
                         ${isDemo ? '<span class="px-1.5 py-0.2 rounded text-[8px] font-mono font-bold saral-badge-mono">DEMO</span>' : ''}
                       </div>
-                      <p class="text-[11px] text-slate dark:text-gray-400">${dateStr} • <span class="text-ink dark:text-white font-medium">Trust Gate Verified</span></p>
+                      <p class="text-[11px] text-slate dark:text-gray-400">${dateStr} â€¢ <span class="text-ink dark:text-white font-medium">Trust Gate Verified</span></p>
                     </div>
                   </div>
                   <div class="text-right">
@@ -3768,7 +3771,7 @@
                   <span class="w-1.5 h-1.5 rounded-full bg-ink dark:bg-white mr-1.5 animate-pulse"></span>
                   Trust Gate Active Protection
                 </span>
-                <span class="text-xs text-slate dark:text-gray-400">• SARAL Personal</span>
+                <span class="text-xs text-slate dark:text-gray-400">â€¢ SARAL Personal</span>
               </div>
               <h1 class="text-2xl sm:text-3xl font-bold font-heading text-ink dark:text-white tracking-tight">
                 Good afternoon, ${SaralUI.escapeHtml(SaralState.user.name.split(' ')[0])}
@@ -3914,7 +3917,7 @@
                   <p class="text-[11px] text-slate dark:text-gray-400">All payments held & verified through Trust Gate</p>
                 </div>
                 <button onclick="SaralRouter.navigate('activity')" class="text-xs font-semibold text-ink dark:text-white hover:underline">
-                  Full Ledger →
+                  Full Ledger â†’
                 </button>
               </div>
 
@@ -3941,7 +3944,7 @@
                 </div>
                 <div>
                   <h3 class="text-xs font-bold font-heading text-ink dark:text-white">Trust Gate Protection</h3>
-                  <p class="text-[11px] text-slate dark:text-gray-400 font-medium">Hold → Verify → Pay Active</p>
+                  <p class="text-[11px] text-slate dark:text-gray-400 font-medium">Hold â†’ Verify â†’ Pay Active</p>
                 </div>
               </div>
               <ul class="text-xs space-y-2.5 text-slate dark:text-gray-300">
@@ -3959,7 +3962,7 @@
                   <svg class="w-4 h-4 text-ink dark:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
                   SARAL Business
                 </span>
-                <span class="text-[10px] font-bold text-slate dark:text-gray-300">Switch Workspace →</span>
+                <span class="text-[10px] font-bold text-slate dark:text-gray-300">Switch Workspace â†’</span>
               </div>
               <p class="text-xs text-slate dark:text-gray-400 mt-2">Manage reseller inventory, Buyer Memory, and accept PayPal payments.</p>
             </div>
@@ -3972,7 +3975,7 @@
       `;
     });
 
-    // Apps Screen — Bento Grid with 6 Canonical Mini-Apps
+    // Apps Screen â€” Bento Grid with 6 Canonical Mini-Apps
     SaralRouter.register('apps', () => {
       return `
       <div class="space-y-6">
@@ -4007,7 +4010,7 @@
                 <p class="text-[10px] text-slate uppercase font-semibold">From</p>
                 <p class="text-xs font-bold text-ink dark:text-white font-mono">$18.25/seat</p>
               </div>
-              <button onclick="SaralRouter.navigate('cinema')" class="px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90">Launch App →</button>
+              <button onclick="SaralRouter.navigate('cinema')" class="px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90">Launch App â†’</button>
             </div>
           </div>
 
@@ -4028,7 +4031,7 @@
                 <p class="text-[10px] text-slate uppercase font-semibold">Rental Rate</p>
                 <p class="text-xs font-bold text-ink dark:text-white font-mono">$1.50/hour</p>
               </div>
-              <button onclick="SaralRouter.navigate('powerbank')" class="px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90">Rent / Return →</button>
+              <button onclick="SaralRouter.navigate('powerbank')" class="px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90">Rent / Return â†’</button>
             </div>
           </div>
 
@@ -4049,7 +4052,7 @@
                 <p class="text-[10px] text-slate uppercase font-semibold">Starting</p>
                 <p class="text-xs font-bold text-ink dark:text-white font-mono">$9.99</p>
               </div>
-              <button onclick="SaralRouter.navigate('recharge')" class="px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90">Recharge →</button>
+              <button onclick="SaralRouter.navigate('recharge')" class="px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90">Recharge â†’</button>
             </div>
           </div>
 
@@ -4070,7 +4073,7 @@
                 <p class="text-[10px] text-slate uppercase font-semibold">Tariff</p>
                 <p class="text-xs font-bold text-ink dark:text-white font-mono">$0.42/kWh</p>
               </div>
-              <button onclick="SaralRouter.navigate('ev')" class="px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90">Charge →</button>
+              <button onclick="SaralRouter.navigate('ev')" class="px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90">Charge â†’</button>
             </div>
           </div>
 
@@ -4091,7 +4094,7 @@
                 <p class="text-[10px] text-slate uppercase font-semibold">Pending</p>
                 <p class="text-xs font-bold text-ink dark:text-white font-mono">$84.20 Due</p>
               </div>
-              <button onclick="SaralRouter.navigate('utilities')" class="px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90">Pay Bills →</button>
+              <button onclick="SaralRouter.navigate('utilities')" class="px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90">Pay Bills â†’</button>
             </div>
           </div>
 
@@ -4112,7 +4115,7 @@
                 <p class="text-[10px] text-slate uppercase font-semibold">Delivery Time</p>
                 <p class="text-xs font-bold text-ink dark:text-white font-mono">20-30 mins</p>
               </div>
-              <button onclick="SaralRouter.navigate('food')" class="px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90">Order Food →</button>
+              <button onclick="SaralRouter.navigate('food')" class="px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90">Order Food â†’</button>
             </div>
           </div>
 
@@ -4139,7 +4142,7 @@
           <div class="flex-1">
             <div class="flex items-center gap-2 mb-1">
               <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">IMAX 3D Laser</span>
-              <span class="text-xs text-slate">Screen 4 • 2h 46m</span>
+              <span class="text-xs text-slate">Screen 4 â€¢ 2h 46m</span>
             </div>
             <h2 class="text-xl font-bold font-heading text-ink dark:text-white">Dune: Part Two (English)</h2>
             <p class="text-xs text-slate dark:text-gray-400 mt-1">Laser 4K Projection with Dolby Atmos 64-Channel Spatial Sound.</p>
@@ -4242,7 +4245,7 @@
               quote_id: quoteData.quote_id,
               quote_hash: quoteData.quote_hash,
               service_type: 'cinema',
-              title: `Dune: Part Two (IMAX 3D) — Seats ${this.selectedSeats.join(', ')}`,
+              title: `Dune: Part Two (IMAX 3D) â€” Seats ${this.selectedSeats.join(', ')}`,
               merchant: quoteData.merchant,
               items_breakdown: quoteData.items,
               amount_minor: quoteData.amount_minor,
@@ -4269,7 +4272,7 @@
           SaralState.pendingProposal = {
             id: 'prop-fallback-' + Date.now(),
             service: 'Cinema',
-            title: `Dune: Part Two (IMAX 3D) — Seats ${this.selectedSeats.join(', ')}`,
+            title: `Dune: Part Two (IMAX 3D) â€” Seats ${this.selectedSeats.join(', ')}`,
             merchant: 'Grand Cineplex IMAX',
             items: [{ name: `IMAX Tickets (${this.selectedSeats.join(', ')})`, qty: this.selectedSeats.length, price: total - 1.50 }, { name: 'Verification Fee', qty: 1, price: 1.50 }],
             fee: 0.00,
@@ -4298,7 +4301,7 @@
               </div>
               <div>
                 <h2 class="text-lg font-bold font-heading text-ink dark:text-white">VoltCharge Station #14</h2>
-                <p class="text-xs text-slate">Central Metro Station, Hall B • 8/12 Available</p>
+                <p class="text-xs text-slate">Central Metro Station, Hall B â€¢ 8/12 Available</p>
               </div>
             </div>
             <span class="text-xs font-bold text-amber-500 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">$18.00 Pre-Auth Hold</span>
@@ -4450,7 +4453,7 @@
           <div>
             <label class="block text-xs font-semibold text-slate mb-1.5">Mobile Phone Number</label>
             <div class="relative flex items-center">
-              <span class="absolute left-4 text-slate text-xs font-mono">📱</span>
+              <span class="absolute left-4 text-slate text-xs font-mono">ðŸ“±</span>
               <input type="tel" id="rech-phone-input" value="${SaralState.user.phone || '+1 (555) 019-2834'}" class="w-full pl-10 pr-4 py-3 rounded-2xl border border-borderLight dark:border-borderDark bg-surfaceLight/50 dark:bg-surfaceDark text-sm focus:outline-none focus:ring-2 focus:ring-ink dark:focus:ring-white text-ink dark:text-white font-mono">
             </div>
           </div>
@@ -4465,7 +4468,7 @@
               </div>
               <div class="text-right flex-shrink-0 ml-3">
                 <span class="text-sm font-black tabular-nums text-ink dark:text-white font-mono">$24.99</span>
-                <span class="block text-[10px] text-success font-semibold">Select →</span>
+                <span class="block text-[10px] text-success font-semibold">Select â†’</span>
               </div>
             </div>
 
@@ -4476,7 +4479,7 @@
               </div>
               <div class="text-right flex-shrink-0 ml-3">
                 <span class="text-sm font-black tabular-nums text-ink dark:text-white font-mono">$9.99</span>
-                <span class="block text-[10px] text-success font-semibold">Select →</span>
+                <span class="block text-[10px] text-success font-semibold">Select â†’</span>
               </div>
             </div>
 
@@ -4487,7 +4490,7 @@
               </div>
               <div class="text-right flex-shrink-0 ml-3">
                 <span class="text-sm font-black tabular-nums text-ink dark:text-white font-mono">$19.99</span>
-                <span class="block text-[10px] text-success font-semibold">Select →</span>
+                <span class="block text-[10px] text-success font-semibold">Select â†’</span>
               </div>
             </div>
           </div>
@@ -4566,7 +4569,7 @@
               </div>
               <div>
                 <h2 class="text-lg font-bold font-heading text-ink dark:text-white">ElectraDrive West Downtown Hub</h2>
-                <p class="text-xs text-slate">Bay 4 • 150kW DC Fast Charging • 3/8 Free</p>
+                <p class="text-xs text-slate">Bay 4 â€¢ 150kW DC Fast Charging â€¢ 3/8 Free</p>
               </div>
             </div>
             <span class="text-xs font-bold text-blue-500 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">$40.00 Pre-Auth Hold</span>
@@ -4710,13 +4713,13 @@
             <div class="p-5 rounded-2xl bg-surfaceLight dark:bg-surfaceDark border border-borderLight dark:border-borderDark flex justify-between items-center">
               <div>
                 <p class="text-xs font-bold text-ink dark:text-white">CleanPower Municipal Electric</p>
-                <p class="text-[11px] text-slate dark:text-gray-400 mt-0.5">Account #8819-2041 • Billing Period: Sep 20 – Oct 20 (340 kWh)</p>
+                <p class="text-[11px] text-slate dark:text-gray-400 mt-0.5">Account #8819-2041 â€¢ Billing Period: Sep 20 â€“ Oct 20 (340 kWh)</p>
                 <span class="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">Due Nov 10, 2026</span>
               </div>
               <div class="text-right flex-shrink-0 ml-4">
                 <span class="text-base font-black tabular-nums text-ink dark:text-white font-mono">$84.20</span>
                 <button onclick="SaralUtilities.pay('CleanPower Municipal Electricity Invoice', 8420)" class="mt-2 block px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90 shadow-subtle">
-                  Pay $84.20 →
+                  Pay $84.20 â†’
                 </button>
               </div>
             </div>
@@ -4724,13 +4727,13 @@
             <div class="p-5 rounded-2xl border border-borderLight dark:border-borderDark flex justify-between items-center opacity-85">
               <div>
                 <p class="text-xs font-bold text-ink dark:text-white">Metropolitan Fiber Broadband 1Gbps</p>
-                <p class="text-[11px] text-slate dark:text-gray-400 mt-0.5">Account #FIBER-9921 • Unlimited Symmetric Fiber</p>
+                <p class="text-[11px] text-slate dark:text-gray-400 mt-0.5">Account #FIBER-9921 â€¢ Unlimited Symmetric Fiber</p>
                 <span class="inline-block mt-2 px-2 py-0.5 rounded text-[10px] font-semibold text-slate">Due Nov 15, 2026</span>
               </div>
               <div class="text-right flex-shrink-0 ml-4">
                 <span class="text-base font-black tabular-nums text-ink dark:text-white font-mono">$59.99</span>
                 <button onclick="SaralUtilities.pay('Metropolitan Fiber Broadband 1Gbps Invoice', 5999)" class="mt-2 block px-4 py-2 rounded-xl border border-borderLight dark:border-borderDark text-ink dark:text-white font-semibold text-xs hover:bg-surfaceLight dark:hover:bg-graphite/40">
-                  Pay $59.99 →
+                  Pay $59.99 â†’
                 </button>
               </div>
             </div>
@@ -4809,7 +4812,7 @@
               </div>
               <div>
                 <h2 class="text-lg font-bold font-heading text-ink dark:text-white">Artisan Trattoria & Cafe</h2>
-                <p class="text-xs text-slate">Wood-Fired Neapolitan Pizza & Handmade Pasta • 4.94 ★</p>
+                <p class="text-xs text-slate">Wood-Fired Neapolitan Pizza & Handmade Pasta â€¢ 4.94 â˜…</p>
               </div>
             </div>
             <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-success border border-emerald-500/20">20-30 min delivery</span>
@@ -4966,7 +4969,7 @@
       }
     };
 
-    // Ask SARAL Personal Screen — Connected to Real Intent Engine & Backend Tools
+    // Ask SARAL Personal Screen â€” Connected to Real Intent Engine & Backend Tools
     SaralRouter.register('ask', () => {
       setTimeout(() => {
         const stream = document.getElementById('personal-chat-stream');
@@ -4983,7 +4986,7 @@
                 <h2 class="text-xs font-bold font-heading text-ink dark:text-white">Ask SARAL Personal Agent</h2>
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               </div>
-              <p class="text-[10px] text-success font-medium">Protected by Trust Gate • No autonomous charges • Server tool execution</p>
+              <p class="text-[10px] text-success font-medium">Protected by Trust Gate â€¢ No autonomous charges â€¢ Server tool execution</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
@@ -4998,7 +5001,7 @@
                 
                 ${msg.tools && msg.tools.length > 0 ? `
                   <div class="mb-2 flex flex-wrap gap-1">
-                    ${msg.tools.map(t => `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surfaceLight dark:bg-surfaceDark border border-borderLight dark:border-borderDark text-[10px] text-slate font-mono"><span class="text-success font-bold">⚡</span>${t.tool || t}</span>`).join('')}
+                    ${msg.tools.map(t => `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surfaceLight dark:bg-surfaceDark border border-borderLight dark:border-borderDark text-[10px] text-slate font-mono"><span class="text-success font-bold">âš¡</span>${t.tool || t}</span>`).join('')}
                   </div>
                 ` : ''}
 
@@ -5016,7 +5019,7 @@
                     </div>
                     
                     <div class="pt-2 border-t border-borderLight/60 dark:border-borderDark/60 flex items-center justify-between">
-                      <span class="text-[10px] text-slate flex items-center gap-1"><span class="text-success font-bold">✓</span> Within Guardrail ($${SaralState.user.perTxLimit})</span>
+                      <span class="text-[10px] text-slate flex items-center gap-1"><span class="text-success font-bold">âœ“</span> Within Guardrail ($${SaralState.user.perTxLimit})</span>
                       <button onclick="SaralAsk.reviewProposal()" class="px-3.5 py-1.5 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-bold text-[11px] hover:opacity-90 shadow-subtle flex items-center gap-1">
                         <span>Review at Trust Gate</span>
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
@@ -5168,7 +5171,7 @@
             proposal = {
               id: 'prop-' + Date.now(),
               service: 'Cinema',
-              title: 'Dune: Part Two (IMAX Laser) — 2x Tickets',
+              title: 'Dune: Part Two (IMAX Laser) â€” 2x Tickets',
               merchant: 'Grand Cineplex IMAX',
               items: [{ name: 'IMAX Laser 3D Seats (D3, D4)', qty: 2, price: 36.50 }, { name: 'Verification Fee', qty: 1, price: 1.50 }],
               fee: 0.00,
@@ -5214,7 +5217,7 @@
       const p = SaralState.pendingProposal || {
         id: 'prop-demo-' + Date.now(),
         service: 'Cinema',
-        title: 'Grand Cineplex IMAX — 2x Tickets',
+        title: 'Grand Cineplex IMAX â€” 2x Tickets',
         merchant: 'Grand Cineplex IMAX',
         items: [{ name: 'IMAX Laser 3D Seats (D3, D4)', qty: 2, price: 36.50 }, { name: 'Protocol Verification Fee', qty: 1, price: 1.50 }],
         fee: 0.00,
@@ -5231,7 +5234,7 @@
         <!-- Progress Stepper -->
         <div class="p-4 rounded-3xl saral-glass shadow-card">
           <div class="flex items-center justify-between text-xs font-semibold px-2">
-            <span class="text-success flex items-center gap-1.5"><span class="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px]">✓</span> 1. AI Intent</span>
+            <span class="text-success flex items-center gap-1.5"><span class="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px]">âœ“</span> 1. AI Intent</span>
             <div class="h-0.5 w-12 bg-emerald-500"></div>
             <span class="text-ink dark:text-white font-bold flex items-center gap-1.5"><span class="w-5 h-5 rounded-full bg-ink dark:bg-white text-white dark:text-ink flex items-center justify-center text-[10px]">2</span> 2. Trust Gate</span>
             <div class="h-0.5 w-12 bg-borderLight dark:border-borderDark"></div>
@@ -5248,7 +5251,7 @@
               </div>
               <div>
                 <h2 class="text-base font-bold font-heading text-ink dark:text-white">Trust Gate Pre-Payment Verification</h2>
-                <p class="text-xs text-slate">AI Intent → Guardrails Check → Explicit Human Approval</p>
+                <p class="text-xs text-slate">AI Intent â†’ Guardrails Check â†’ Explicit Human Approval</p>
               </div>
             </div>
             <span class="text-[10px] font-mono px-2.5 py-1 rounded-full saral-glass-panel text-slate border border-borderLight dark:border-borderDark">${p.id}</span>
@@ -5257,19 +5260,19 @@
           <!-- Strict Guardrail Verification Criteria -->
           <div class="space-y-2.5 text-xs">
             <div class="p-3 rounded-xl saral-glass-panel flex justify-between items-center">
-              <span class="flex items-center gap-2"><span class="text-success font-bold">✓</span> Price Drift & Tamper Guard (0.0% Slippage)</span>
+              <span class="flex items-center gap-2"><span class="text-success font-bold">âœ“</span> Price Drift & Tamper Guard (0.0% Slippage)</span>
               <span class="text-success font-bold uppercase tracking-wider text-[10px]">Passed</span>
             </div>
             <div class="p-3 rounded-xl saral-glass-panel flex justify-between items-center">
-              <span class="flex items-center gap-2"><span class="text-success font-bold">✓</span> Per-Transaction Spending Guardrail ($${p.total.toFixed(2)} $\\le$ $${userCap}.00)</span>
+              <span class="flex items-center gap-2"><span class="text-success font-bold">âœ“</span> Per-Transaction Spending Guardrail ($${p.total.toFixed(2)} $\\le$ $${userCap}.00)</span>
               <span class="${isWithinCap ? 'text-success' : 'text-danger'} font-bold uppercase tracking-wider text-[10px]">${isWithinCap ? 'Passed' : 'Exceeded'}</span>
             </div>
             <div class="p-3 rounded-xl saral-glass-panel flex justify-between items-center">
-              <span class="flex items-center gap-2"><span class="text-success font-bold">✓</span> Merchant Integrity Verification (${p.merchant})</span>
+              <span class="flex items-center gap-2"><span class="text-success font-bold">âœ“</span> Merchant Integrity Verification (${p.merchant})</span>
               <span class="text-success font-bold uppercase tracking-wider text-[10px]">Verified</span>
             </div>
             <div class="p-3 rounded-xl saral-glass-panel flex justify-between items-center">
-              <span class="flex items-center gap-2"><span class="text-amber-500 font-bold animate-pulse">●</span> User Intent Confirmation Requirement</span>
+              <span class="flex items-center gap-2"><span class="text-amber-500 font-bold animate-pulse">â—</span> User Intent Confirmation Requirement</span>
               <span class="text-amber-500 font-bold uppercase tracking-wider text-[10px]">Pending Approval</span>
             </div>
           </div>
@@ -5573,7 +5576,7 @@
           <div class="space-y-1">
             <div class="flex items-center gap-2">
               <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white uppercase tracking-wider">Chrome Companion</span>
-              <span class="text-xs text-emerald-400 font-semibold flex items-center gap-1">● In-Browser Auto-Apply</span>
+              <span class="text-xs text-emerald-400 font-semibold flex items-center gap-1">â— In-Browser Auto-Apply</span>
             </div>
             <h2 class="text-base sm:text-lg font-bold font-heading">Auto-apply discounts on Amazon, Swiggy, Netflix & Flipkart</h2>
             <p class="text-xs text-zinc-300 max-w-xl">Install the SARAL Companion extension to automatically detect partner merchants and claim available discounts at checkout.</p>
@@ -5593,7 +5596,7 @@
                 <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-500/10 text-info">${v.category}</span>
                 <h3 class="text-xl font-bold font-heading text-ink dark:text-white mt-3">${v.discount}</h3>
                 <p class="text-xs font-semibold text-slate mt-0.5">${v.merchant}</p>
-                <p class="text-[11px] text-slate mt-2">Min Spend: ${v.minSpend} • Expires ${v.expiry}</p>
+                <p class="text-[11px] text-slate mt-2">Min Spend: ${v.minSpend} â€¢ Expires ${v.expiry}</p>
               </div>
               <div class="mt-6 pt-4 border-t border-borderLight dark:border-borderDark flex justify-between items-center">
                 <span class="font-mono text-xs font-bold text-ink dark:text-white bg-surfaceLight dark:bg-surfaceDark px-2.5 py-1 rounded border border-borderLight dark:border-borderDark">${v.code}</span>
@@ -5631,7 +5634,7 @@
                   </div>
                   <div>
                     <p class="text-xs font-semibold text-ink dark:text-white">${tx.title}</p>
-                    <p class="text-[11px] text-slate">${tx.date} • <span class="font-mono text-[10px]">${tx.id}</span></p>
+                    <p class="text-[11px] text-slate">${tx.date} â€¢ <span class="font-mono text-[10px]">${tx.id}</span></p>
                   </div>
                 </div>
                 <div class="text-right">
@@ -5664,7 +5667,7 @@
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
                   PayPal Sandbox Integrated
                 </span>
-                <span class="text-xs text-slate dark:text-gray-400">• SARAL Business Workspace</span>
+                <span class="text-xs text-slate dark:text-gray-400">â€¢ SARAL Business Workspace</span>
               </div>
               <h1 class="text-2xl sm:text-3xl font-bold font-heading text-ink dark:text-white tracking-tight">
                 ${SaralState.business.name}
@@ -5692,7 +5695,7 @@
           <div class="p-5 rounded-3xl bg-cardLight dark:bg-cardDark border border-borderLight dark:border-borderDark shadow-card">
             <span class="text-xs text-slate font-medium">Sales This Month</span>
             <p class="text-2xl font-black font-heading tabular-nums text-ink dark:text-white mt-1">$${SaralState.business.stats.monthlyRevenue.toLocaleString()}</p>
-            <span class="text-[10px] text-success font-semibold flex items-center gap-1 mt-1">↑ 18.4% vs last month</span>
+            <span class="text-[10px] text-success font-semibold flex items-center gap-1 mt-1">â†‘ 18.4% vs last month</span>
           </div>
 
           <div class="p-5 rounded-3xl bg-cardLight dark:bg-cardDark border border-borderLight dark:border-borderDark shadow-card">
@@ -5731,7 +5734,7 @@
                     <p class="text-[11px] text-slate">AI-analyzed cross-marketplace demand & buyer matchmaking</p>
                   </div>
                 </div>
-                <button onclick="SaralRouter.navigate('biz-marketplaces')" class="text-xs font-semibold text-ink dark:text-white hover:underline">Marketplace Hub →</button>
+                <button onclick="SaralRouter.navigate('biz-marketplaces')" class="text-xs font-semibold text-ink dark:text-white hover:underline">Marketplace Hub â†’</button>
               </div>
 
               <div class="space-y-3">
@@ -5741,7 +5744,7 @@
                       <span class="text-xs font-bold text-ink dark:text-white">Leica M3 35mm Vintage</span>
                       <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-success">High Demand</span>
                     </div>
-                    <p class="text-xs text-slate mt-0.5">Matched with buyer <strong>Marcus Vance</strong> (Budget $1,000–$2,500). Recommend direct PayPal invoice to save 13% eBay fee.</p>
+                    <p class="text-xs text-slate mt-0.5">Matched with buyer <strong>Marcus Vance</strong> (Budget $1,000â€“$2,500). Recommend direct PayPal invoice to save 13% eBay fee.</p>
                   </div>
                   <button onclick="SaralBizOrders.prepareDirectSale('INV-101', 'BUY-01')" class="px-4 py-2 rounded-xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90 flex-shrink-0">
                     Prepare Sale ($1,450)
@@ -5767,7 +5770,7 @@
             <div class="p-6 rounded-3xl bg-cardLight dark:bg-cardDark border border-borderLight dark:border-borderDark shadow-card">
               <div class="flex items-center justify-between mb-4">
                 <h2 class="text-base font-bold font-heading text-ink dark:text-white">Recent Orders & Transactions</h2>
-                <button onclick="SaralRouter.navigate('biz-orders')" class="text-xs font-semibold text-ink dark:text-white hover:underline">All Orders →</button>
+                <button onclick="SaralRouter.navigate('biz-orders')" class="text-xs font-semibold text-ink dark:text-white hover:underline">All Orders â†’</button>
               </div>
 
               <div class="divide-y divide-borderLight dark:divide-borderDark">
@@ -5775,7 +5778,7 @@
                   <div class="py-3.5 flex items-center justify-between hover:bg-surfaceLight/50 dark:hover:bg-graphite/20 px-2 rounded-xl transition-colors">
                     <div>
                       <p class="text-xs font-semibold text-ink dark:text-white">${o.product}</p>
-                      <p class="text-[11px] text-slate">Buyer: <span class="font-medium text-ink dark:text-gray-300">${o.buyer}</span> • ${o.channel}</p>
+                      <p class="text-[11px] text-slate">Buyer: <span class="font-medium text-ink dark:text-gray-300">${o.buyer}</span> â€¢ ${o.channel}</p>
                     </div>
                     <div class="text-right">
                       <p class="text-xs font-bold font-heading tabular-nums text-ink dark:text-white">+$${o.amount.toFixed(2)}</p>
@@ -5900,7 +5903,7 @@
                     </td>
                     <td class="py-3.5 px-4 text-right">
                       <button onclick="SaralBizMarketplaces.openOptimizer('${item.id}')" class="px-3 py-1.5 rounded-lg border border-borderLight dark:border-borderDark text-[11px] font-semibold text-ink dark:text-white hover:bg-surfaceLight dark:hover:bg-graphite/40">
-                        Sell Where It Sells →
+                        Sell Where It Sells â†’
                       </button>
                     </td>
                   </tr>
@@ -6027,7 +6030,7 @@
           name: name,
           email: email,
           preferredCategory: cat,
-          budgetRange: '$500 – $1,500',
+          budgetRange: '$500 â€“ $1,500',
           pastPurchases: 0,
           totalSpent: 0.00,
           lastInteraction: 'Just now',
@@ -6074,7 +6077,7 @@
               ${SaralState.inventory.map(item => `
                 <div onclick="SaralBizMarketplaces.selectItem('${item.id}')" class="p-3 rounded-2xl border border-borderLight dark:border-borderDark hover:border-ink dark:hover:border-white transition-all cursor-pointer">
                   <p class="text-xs font-bold text-ink dark:text-white">${item.title}</p>
-                  <p class="text-[11px] text-slate">Target: $${item.targetPrice.toFixed(2)} • ${item.category}</p>
+                  <p class="text-[11px] text-slate">Target: $${item.targetPrice.toFixed(2)} â€¢ ${item.category}</p>
                 </div>
               `).join('')}
             </div>
@@ -6097,7 +6100,7 @@
                   <span class="font-bold text-ink dark:text-white">1. eBay (Top Recommended)</span>
                   <span class="font-bold text-success">96% Fit</span>
                 </div>
-                <p class="text-[11px] text-slate mt-1">High international collector demand. Recent comparable sales: $1,420 – $1,550.</p>
+                <p class="text-[11px] text-slate mt-1">High international collector demand. Recent comparable sales: $1,420 â€“ $1,550.</p>
                 <p class="text-[11px] text-slate mt-1">Est. Take-Home: <strong>$1,265.00</strong> (12.8% final value fee).</p>
               </div>
 
@@ -6120,13 +6123,13 @@
                 </button>
               </div>
               <div id="mkt-draft-text" class="text-xs text-slate dark:text-gray-300 font-mono p-3 rounded-xl bg-cardLight dark:bg-cardDark border border-borderLight dark:border-borderDark leading-relaxed">
-Title: Leica M3 Single Stroke 35mm Rangefinder Camera (Serial #992100) — Tested, Flawless Shutter
+Title: Leica M3 Single Stroke 35mm Rangefinder Camera (Serial #992100) â€” Tested, Flawless Shutter
 Description: Authentic German vintage rangefinder in collector-grade condition. All shutter speeds accurate, clear viewfinder with clean double-image alignment. Ships with original body cap and presentation case.
               </div>
             </div>
 
             <button onclick="SaralBizOrders.openCreateSaleModal()" class="w-full py-3.5 rounded-2xl bg-ink dark:bg-white text-white dark:text-ink font-semibold text-xs hover:opacity-90">
-              Prepare PayPal Sandbox Invoice for this Item →
+              Prepare PayPal Sandbox Invoice for this Item â†’
             </button>
           </div>
 
@@ -6147,7 +6150,7 @@ Description: Authentic German vintage rangefinder in collector-grade condition. 
         if (titleEl) titleEl.textContent = item.title;
         const draftEl = document.getElementById('mkt-draft-text');
         if (draftEl) {
-          draftEl.textContent = `Title: ${item.title} (${item.condition}) — Fast Shipping\nDescription: Authentic verified ${item.category} item. Condition: ${item.condition}. Guaranteed working order. Ready for immediate checkout via PayPal sandbox protection. Target Price: $${item.targetPrice.toFixed(2)}.`;
+          draftEl.textContent = `Title: ${item.title} (${item.condition}) â€” Fast Shipping\nDescription: Authentic verified ${item.category} item. Condition: ${item.condition}. Guaranteed working order. Ready for immediate checkout via PayPal sandbox protection. Target Price: $${item.targetPrice.toFixed(2)}.`;
         }
       }
     };
@@ -6456,7 +6459,7 @@ Description: Authentic German vintage rangefinder in collector-grade condition. 
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-xs font-semibold px-3 py-1 rounded-full bg-ink dark:bg-white text-white dark:text-ink">Open Setup</span>
-                <span class="settings-row-chevron">›</span>
+                <span class="settings-row-chevron">â€º</span>
               </div>
             </div>
           </div>
@@ -6509,7 +6512,7 @@ Description: Authentic German vintage rangefinder in collector-grade condition. 
                   <div class="settings-row-desc">k-Anonymity breach checks, zero plaintext storage, and AES vault.</div>
                 </div>
               </div>
-              <span class="settings-row-chevron">›</span>
+              <span class="settings-row-chevron">â€º</span>
             </div>
 
             <div class="settings-row" id="btn-open-pair-extension" onclick="SaralPairingModal.open('install')" role="button" tabindex="0">
@@ -6526,7 +6529,7 @@ Description: Authentic German vintage rangefinder in collector-grade condition. 
               </div>
               <div class="flex items-center gap-2">
                 <span class="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">New</span>
-                <span class="settings-row-chevron">›</span>
+                <span class="settings-row-chevron">â€º</span>
               </div>
             </div>
 
@@ -6542,7 +6545,7 @@ Description: Authentic German vintage rangefinder in collector-grade condition. 
                   <div class="settings-row-desc">Mini-app sandbox, Quote API specs, and Trust Gate verification.</div>
                 </div>
               </div>
-              <span class="settings-row-chevron">›</span>
+              <span class="settings-row-chevron">â€º</span>
             </div>
           </div>
         </div>
