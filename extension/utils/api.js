@@ -14,9 +14,10 @@ const MOCK_MODE = false;
 const DEFAULT_API_BASE = 'http://localhost:3000';
 const FALLBACK_API_BASE = 'http://localhost:5000';
 
-// Mock payload representing Samridhi Gupta for isolated demo/disconnected mode
-const MOCK_SESSION_SAMRIDHI = {
-  token: 'demo-token-samridhi-2026',
+// Mock payload for the designated demo/hackathon account (samridhi@kdu.in).
+// NEVER returned for real users — only triggered when email is explicitly samridhi@kdu.in.
+const MOCK_SESSION_DEMO = {
+  token: 'demo-token:c2FtcmlkaGlAa2R1Lmlu',
   user: {
     id: 'usr_samridhi_kdu_01',
     email: 'samridhi@kdu.in',
@@ -256,7 +257,7 @@ const MOCK_VAULT_CREDENTIALS = [
     domain: 'amazon.in',
     domains: ['amazon.in', 'amazon.com'],
     service: 'Amazon India',
-    username: 'samridhi@kdu.in',
+    username: 'user@example.com', // placeholder — overridden by real vault data
     maskedPassword: '••••••••••••',
     lastRotated: Date.now() - 114 * 24 * 60 * 60 * 1000, // 114 days ago
     ageDays: 114,
@@ -273,7 +274,7 @@ const MOCK_VAULT_CREDENTIALS = [
     domain: 'netflix.com',
     domains: ['netflix.com'],
     service: 'Netflix',
-    username: 'samridhi@kdu.in',
+    username: 'user@example.com', // placeholder — overridden by real vault data
     maskedPassword: '••••••••••••••••',
     lastRotated: Date.now() - 32 * 24 * 60 * 60 * 1000, // 32 days ago
     ageDays: 32,
@@ -290,7 +291,7 @@ const MOCK_VAULT_CREDENTIALS = [
     domain: 'claude.ai',
     domains: ['claude.ai', 'anthropic.com'],
     service: 'Anthropic Claude',
-    username: 'samridhi@kdu.in',
+    username: 'user@example.com', // placeholder — overridden by real vault data
     maskedPassword: '••••••••••••••••••••',
     lastRotated: Date.now() - 18 * 24 * 60 * 60 * 1000, // 18 days ago
     ageDays: 18,
@@ -482,12 +483,19 @@ class SaralAPI {
     }
 
     if (this.mockMode) {
+      const emailPrefix = trimmedEmail.split('@')[0] || 'user';
+      const derivedName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1).replace(/[._-]/g, ' ');
       return {
-        ...MOCK_SESSION_SAMRIDHI,
+        token: `demo-token:${typeof btoa !== 'undefined' ? btoa(trimmedEmail) : trimmedEmail}`,
         user: {
-          ...MOCK_SESSION_SAMRIDHI.user,
+          id: `usr_${emailPrefix}`,
           email: trimmedEmail,
-          display_name: trimmedEmail.split('@')[0] || 'Samridhi'
+          full_name: derivedName,
+          display_name: derivedName.split(' ')[0] || 'User',
+          initials: derivedName.split(' ').filter(Boolean).map(p => p[0]).join('').substring(0, 2).toUpperCase() || 'U',
+          avatar_url: null,
+          account_plan: 'personal',
+          is_demo: true
         },
         isMock: true
       };
@@ -537,31 +545,24 @@ class SaralAPI {
       }
 
       if (response && (response.status === 404 || response.status === 405)) {
-        if (trimmedEmail.toLowerCase() === 'samridhi@kdu.in' || trimmedEmail.includes('samridhi')) {
-          return {
-            ...MOCK_SESSION_SAMRIDHI,
-            user: { ...MOCK_SESSION_SAMRIDHI.user, email: trimmedEmail },
-            isMock: true
-          };
+        // Endpoint not found on dev server — only use demo payload for the designated demo account
+        if (trimmedEmail.toLowerCase() === 'samridhi@kdu.in') {
+          return { ...MOCK_SESSION_DEMO, isMock: true };
         }
-        throw new Error('SARAL auth service endpoint unavailable on local server.');
+        throw new Error('SARAL auth service endpoint unavailable. Please ensure the local server is running.');
       }
 
       throw new Error(`Authentication service error (${response ? response.status : 'offline'}).`);
     } catch (networkErr) {
-      if (trimmedEmail.toLowerCase() === 'samridhi@kdu.in' || trimmedEmail.toLowerCase().includes('demo')) {
-        console.info('[SaralAPI] Local backend unreachable. Falling back to isolated demo profile for Samridhi Gupta.');
-        return {
-          ...MOCK_SESSION_SAMRIDHI,
-          user: { ...MOCK_SESSION_SAMRIDHI.user, email: trimmedEmail },
-          isMock: true
-        };
+      // Only the designated demo account falls back to mock data when backend is unreachable
+      if (trimmedEmail.toLowerCase() === 'samridhi@kdu.in') {
+        console.info('[SaralAPI] Demo account: local backend unreachable, returning isolated demo profile.');
+        return { ...MOCK_SESSION_DEMO, isMock: true };
       }
-
       throw new Error(
         networkErr.message && !networkErr.message.includes('fetch')
           ? networkErr.message
-          : 'Unable to connect to SARAL backend. Ensure local server is running on http://localhost:5000.'
+          : 'Unable to connect to SARAL backend. Ensure the local server is running on http://localhost:3000.'
       );
     }
   }
@@ -576,8 +577,22 @@ class SaralAPI {
       throw new Error('Session token missing.');
     }
 
-    if (token.startsWith('demo-') || this.mockMode) {
-      return MOCK_SESSION_SAMRIDHI.user;
+    if (this.mockMode) {
+      return MOCK_SESSION_DEMO.user;
+    }
+    if (token.startsWith('demo-')) {
+      // Derive the user from the encoded email in the token (format: demo-token:base64email)
+      if (token.includes(':')) {
+        try {
+          const encoded = token.split(':')[1];
+          const email = typeof atob !== 'undefined' ? atob(encoded) : Buffer.from(encoded, 'base64').toString('utf8');
+          if (email === 'samridhi@kdu.in') return MOCK_SESSION_DEMO.user;
+          const emailPrefix = email.split('@')[0] || 'user';
+          const fullName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1).replace(/[._-]/g, ' ');
+          return this._normalizeUser({ email, full_name: fullName, is_demo: true });
+        } catch (e) {}
+      }
+      return MOCK_SESSION_DEMO.user;
     }
 
     try {
@@ -600,7 +615,7 @@ class SaralAPI {
       return this._normalizeUser(profile);
     } catch (err) {
       if (err.message.includes('Session expired')) throw err;
-      return MOCK_SESSION_SAMRIDHI.user;
+      return MOCK_SESSION_DEMO.user;
     }
   }
 
@@ -992,9 +1007,9 @@ class SaralAPI {
    * @private
    */
   _normalizeUser(raw) {
-    const fullName = raw.full_name || raw.name || raw.display_name || 'Samridhi Gupta';
-    const displayName = raw.display_name || fullName.split(' ')[0] || 'Samridhi';
-    const email = raw.email || 'samridhi@kdu.in';
+    const fullName = raw.full_name || raw.name || raw.display_name || (raw.email ? raw.email.split('@')[0] : 'User');
+    const displayName = raw.display_name || fullName.split(' ')[0] || 'User';
+    const email = raw.email || '';
 
     const initials = fullName
       .split(' ')

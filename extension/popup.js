@@ -152,9 +152,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     viewLoggedOut.style.display = 'none';
     viewLoggedIn.style.display = 'flex';
 
-    // Populate user profile
-    const displayName = user?.display_name || 'Samridhi';
-    const initials = user?.initials || 'SG';
+    // Populate user profile — always from the authenticated user object
+    const displayName = user?.display_name || user?.full_name?.split(' ')[0] || 'User';
+    const initials = user?.initials || (user?.full_name || user?.display_name || 'U').substring(0, 2).toUpperCase();
     userDisplayName.textContent = displayName;
     userAvatarInitials.textContent = initials;
 
@@ -378,7 +378,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       domainCredBox.style.display = 'flex';
       domainCredTitle.textContent = `${domain} Credential`;
-      domainCredUser.textContent = primaryCred.username || 'samridhi@kdu.in';
+      domainCredUser.textContent = primaryCred.username || '';
 
       if (isRisky) {
         securityMetricText.textContent = `${domain} • 1 Saved Credential (Needs Rotation)`;
@@ -941,37 +941,93 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (btnSubmitPairCode && inputPairingCode) {
     btnSubmitPairCode.addEventListener('click', async () => {
       const code = inputPairingCode.value.trim().toUpperCase();
-      if (!code) {
-        showError('Please enter the 6-character code shown on SARAL Settings.');
+      if (!code || !code.startsWith('SARAL-')) {
+        showError('Enter a valid SARAL pairing code (e.g. SARAL-1234-AB).');
         return;
       }
 
       setButtonLoading(true);
-      try {
-        // Attempt pairing: retrieve token from local paired store or authenticate
-        let pairedToken = null;
-        let pairedUser = null;
-        try {
-          pairedToken = localStorage.getItem('saral_companion_paired_token');
-          const uStr = localStorage.getItem('saral_companion_paired_user');
-          if (uStr) pairedUser = JSON.parse(uStr);
-        } catch (e) {}
+      hideError();
 
-        if (!pairedToken) {
-          pairedToken = `demo-token:${typeof btoa !== 'undefined' ? btoa('samridhi@kdu.in') : 'c2FtcmlkaGlAa2R1Lmlu'}`;
-          pairedUser = {
-            id: 'usr_samridhi_01',
-            email: 'samridhi@kdu.in',
-            full_name: 'Samridhi Gupta',
-            display_name: 'Samridhi',
-            initials: 'SG'
-          };
+      try {
+        // Step 1: Clear any stale session and cached data before pairing
+        await chrome.storage.local.clear();
+
+        // Step 2: Resolve the code against the backend to get the real authenticated user
+        let resolvedToken = null;
+        let resolvedUser = null;
+        let pairError = null;
+
+        const apiBase = saralApi.apiBase || 'http://localhost:3000';
+        const fallbackBase = 'http://localhost:5000';
+
+        for (const base of [apiBase, fallbackBase]) {
+          try {
+            const res = await fetch(`${base}/api/companion/pair`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+              body: JSON.stringify({ code }),
+              signal: AbortSignal.timeout(5000)
+            });
+
+            if (res.ok) {
+              const data = await res.json();
+              resolvedToken = data.token;
+              resolvedUser = saralApi._normalizeUser(data.user || {});
+              pairError = null;
+              break;
+            }
+
+            const errData = await res.json().catch(() => ({}));
+            pairError = errData.error || `Server responded with ${res.status}`;
+          } catch (fetchErr) {
+            pairError = fetchErr.name === 'TimeoutError'
+              ? 'Server timed out. Ensure SARAL is running.'
+              : fetchErr.message;
+          }
         }
 
-        await SaralStorage.setToken(pairedToken);
-        await SaralStorage.setUser(pairedUser);
-        notifyBackground('SARAL_AUTH_STATE_CHANGED', { isAuthenticated: true, token: pairedToken, user: pairedUser });
-        await showLoggedInView(pairedUser);
+        // Step 3: If backend resolved, use real credentials; else try localStorage handoff
+        if (!resolvedToken || !resolvedUser) {
+          // localStorage handoff: written by saral.html autoPairExtension postMessage handler
+          try {
+            const lsToken = localStorage.getItem('saral_companion_paired_token');
+            const lsUserStr = localStorage.getItem('saral_companion_paired_user');
+            if (lsToken && lsUserStr) {
+              const lsUser = JSON.parse(lsUserStr);
+              const lsCode = localStorage.getItem('saral_companion_paired_code');
+              // Only accept if the code matches what saral.html set
+              if (!lsCode || lsCode === code) {
+                resolvedToken = lsToken;
+                resolvedUser = saralApi._normalizeUser(lsUser);
+                pairError = null;
+              }
+            }
+          } catch (e) {}
+        }
+
+        if (!resolvedToken || !resolvedUser) {
+          throw new Error(pairError || 'Could not resolve pairing code. Please generate a new code from SARAL Settings.');
+        }
+
+        // Step 4: Persist the real, user-specific session
+        await SaralStorage.setToken(resolvedToken);
+        await SaralStorage.setUser(resolvedUser);
+        notifyBackground('SARAL_AUTH_STATE_CHANGED', {
+          isAuthenticated: true,
+          token: resolvedToken,
+          user: resolvedUser
+        });
+
+        // Clear localStorage pairing handoff to prevent replay
+        try {
+          localStorage.removeItem('saral_companion_paired_token');
+          localStorage.removeItem('saral_companion_paired_user');
+          localStorage.removeItem('saral_companion_paired_at');
+          localStorage.removeItem('saral_companion_paired_code');
+        } catch (e) {}
+
+        await showLoggedInView(resolvedUser);
       } catch (err) {
         showError('Pairing failed: ' + err.message);
       } finally {

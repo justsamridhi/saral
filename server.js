@@ -833,7 +833,7 @@ async function requireAuth(req, res, next) {
   const token = authHeader.split(' ')[1];
 
   // Isolated Demo Mode
-  if (token === 'demo-token' || token.startsWith('demo-') || token.includes('samridhi')) {
+  if (token === 'demo-token' || token.startsWith('demo-')) {
     if (!ALLOW_DEMO_MODE) {
       return res.status(403).json({ error: 'Demo mode is not permitted in production' });
     }
@@ -852,9 +852,6 @@ async function requireAuth(req, res, next) {
         userEmail = Buffer.from(parts[1], 'base64').toString('utf8');
         userId = `usr_${userEmail.split('@')[0]}`;
       } catch (e) {}
-    } else if (token.includes('samridhi')) {
-      userEmail = 'samridhi@kdu.in';
-      userId = 'usr_samridhi_01';
     }
     req.user = { id: userId, email: userEmail, isDemo: true };
     return next();
@@ -1703,7 +1700,7 @@ app.post('/api/auth/login', async (req, res) => {
       }
 
       // If Supabase returned an explicit auth error and it's not a demo fallback attempt
-      if (error && !ALLOW_DEMO_MODE && !cleanEmail.includes('demo') && !cleanEmail.includes('samridhi')) {
+      if (error && !ALLOW_DEMO_MODE && !cleanEmail.includes('demo')) {
         return res.status(401).json({ error: error.message || 'Invalid email or password' });
       }
     } catch (authErr) {
@@ -1712,17 +1709,18 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   // 2. Demo / Dev Mode fallback for hackathon demonstration
-  if (ALLOW_DEMO_MODE || cleanEmail.includes('demo') || cleanEmail.includes('samridhi')) {
-    const isSamridhi = cleanEmail.includes('samridhi');
-    const fullName = isSamridhi ? 'Samridhi Gupta' : 'Demo User';
-    const displayName = isSamridhi ? 'Samridhi' : 'Demo';
-    const initials = isSamridhi ? 'SG' : 'DU';
+  if (ALLOW_DEMO_MODE || cleanEmail.includes('demo')) {
+    // Derive name from email prefix — no hardcoded user fixtures
+    const emailPrefix = cleanEmail.split('@')[0] || 'user';
+    const fullName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1).replace(/[._-]/g, ' ');
+    const displayName = fullName.split(' ')[0] || 'User';
+    const initials = fullName.split(' ').filter(Boolean).map(p => p[0]).join('').substring(0, 2).toUpperCase() || 'U';
 
     return res.json({
       success: true,
       token: `demo-token:${Buffer.from(cleanEmail).toString('base64')}`,
       user: {
-        id: isSamridhi ? 'usr_samridhi_01' : 'demo-user-id',
+        id: `usr_${emailPrefix.replace(/[^a-z0-9]/gi, '_')}`,
         email: cleanEmail,
         full_name: fullName,
         display_name: displayName,
@@ -1878,8 +1876,8 @@ app.get('/api/user/profile', requireAuth, async (req, res) => {
   const userId = req.user.id;
   const userEmail = req.user.email;
 
-  let fullName = req.user.isDemo ? 'Samridhi Gupta' : '';
-  let displayName = req.user.isDemo ? 'Samridhi' : '';
+  let fullName = '';
+  let displayName = '';
   let avatarUrl = '';
 
   if (!req.user.isDemo && supabase) {
@@ -5702,6 +5700,122 @@ app.post('/api/paypal/webhook', async (req, res) => {
   }
 
   res.status(200).json({ received: true });
+});
+
+// ============================================================================
+// SARAL COMPANION PAIRING CODE STORE & ENDPOINTS
+// In-memory TTL store (per-process). For multi-instance deployments, replace
+// with Redis or Supabase row. Codes expire after 15 minutes.
+// ============================================================================
+
+/** @type {Map<string, {userId: string, email: string, token: string, user: object, expiresAt: number}>} */
+const pairingCodeStore = new Map();
+const PAIRING_CODE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+// Garbage-collect expired codes every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, entry] of pairingCodeStore) {
+    if (entry.expiresAt < now) pairingCodeStore.delete(code);
+  }
+}, 5 * 60 * 1000);
+
+/**
+ * POST /api/companion/generate-code
+ * Authenticated route: binds the calling user's real session to a short-lived pairing code.
+ * saral.html calls this when the user opens the pairing modal.
+ */
+app.post('/api/companion/generate-code', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const userEmail = req.user.email;
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.split(' ')[1] || '';
+
+  // Build real user object (fetch from profiles table if real user, derive otherwise)
+  let fullName = '';
+  let displayName = '';
+  let initials = 'U';
+  let avatarUrl = '';
+
+  if (!req.user.isDemo && supabase) {
+    try {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('full_name, display_name, avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+      if (prof) {
+        fullName = prof.full_name || '';
+        displayName = prof.display_name || '';
+        avatarUrl = prof.avatar_url || '';
+      }
+    } catch (e) {}
+  }
+
+  // Derive from email if profile table had no data
+  fullName = fullName || (userEmail ? userEmail.split('@')[0] : 'User');
+  displayName = displayName || fullName.split(' ')[0] || 'User';
+  initials = fullName.split(' ').filter(Boolean).map(p => p[0]).join('').substring(0, 2).toUpperCase() || 'U';
+
+  // Generate a code in the same format as the frontend: SARAL-NNNN-XX
+  const randNum = String(Math.floor(1000 + Math.random() * 9000));
+  const randAlpha = Math.random().toString(36).substring(2, 4).toUpperCase();
+  const code = `SARAL-${randNum}-${randAlpha}`;
+
+  pairingCodeStore.set(code, {
+    userId,
+    email: userEmail,
+    token,
+    user: {
+      id: userId,
+      email: userEmail,
+      full_name: fullName,
+      display_name: displayName,
+      initials,
+      avatar_url: avatarUrl,
+      is_demo: Boolean(req.user.isDemo)
+    },
+    expiresAt: Date.now() + PAIRING_CODE_TTL_MS
+  });
+
+  return res.json({
+    success: true,
+    code,
+    expiresInSeconds: PAIRING_CODE_TTL_MS / 1000
+  });
+});
+
+/**
+ * POST /api/companion/pair
+ * Public route: Extension calls with the user-entered code.
+ * Returns the real session token + user profile scoped to that code.
+ */
+app.post('/api/companion/pair', async (req, res) => {
+  const { code } = req.body || {};
+  if (!code || typeof code !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid pairing code.' });
+  }
+
+  const normalizedCode = code.trim().toUpperCase();
+  const entry = pairingCodeStore.get(normalizedCode);
+
+  if (!entry) {
+    return res.status(404).json({ error: 'Pairing code not found. Generate a new code from the SARAL web app.' });
+  }
+
+  if (entry.expiresAt < Date.now()) {
+    pairingCodeStore.delete(normalizedCode);
+    return res.status(400).json({ error: 'Pairing code has expired. Please generate a new code.' });
+  }
+
+  // Consume the code (single-use)
+  pairingCodeStore.delete(normalizedCode);
+
+  return res.json({
+    success: true,
+    token: entry.token,
+    user: entry.user
+  });
 });
 
 // Root route: Serve saral.html
