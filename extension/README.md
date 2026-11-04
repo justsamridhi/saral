@@ -159,3 +159,4 @@ The extension's `utils/api.js` client communicates with SARAL backend endpoints 
 - [x] **PCI DSS Compliance**: No CVVs, full card numbers, or card expirations are ever collected, transmitted, or saved.
 - [x] **Supabase Security**: No `service_role` keys present in extension files. All data access relies on client JWTs.
 - [x] **User Consent**: Independent toggles for Vouchers, Subscriptions, and Password Alerts with local cache wipe options.
+

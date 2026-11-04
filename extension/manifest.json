@@ -9,6 +9,8 @@
     "clipboardWrite"
   ],
   "host_permissions": [
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*",
     "http://localhost:5000/*",
     "https://*.supabase.co/*",
     "https://api.pwnedpasswords.com/*"

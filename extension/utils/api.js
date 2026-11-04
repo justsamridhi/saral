@@ -7,12 +7,12 @@
  * keys, payment card secrets, CVVs, or bank authorization tokens be handled here.
  */
 
-// Toggleable mock fallback switch (defaulting to live local backend)
+// Toggleable mock fallback switch (defaulting to live local backend per specification)
 const MOCK_MODE = false;
 
-// Default local backend ports (per manifest host_permissions: http://localhost:5000/*)
-const DEFAULT_API_BASE = 'http://localhost:5000';
-const FALLBACK_API_BASE = 'http://localhost:3000';
+// Default local backend ports (Primary: 3000, Secondary/Fallback: 5000)
+const DEFAULT_API_BASE = 'http://localhost:3000';
+const FALLBACK_API_BASE = 'http://localhost:5000';
 
 // Mock payload representing Samridhi Gupta for isolated demo/disconnected mode
 const MOCK_SESSION_SAMRIDHI = {
