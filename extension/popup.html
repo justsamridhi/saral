@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SARAL Companion</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="extension-container">
+    
+    <!-- ======================================================== -->
+    <!-- VIEW A: LOGGED-OUT / SIGN IN                            -->
+    <!-- ======================================================== -->
+    <section id="view-logged-out" class="view-panel" style="display: none;">
+      <!-- Brand Header -->
+      <header class="auth-header">
+        <div class="brand-row">
+          <div class="brand-wordmark">
+            <span class="logo-text">saral</span>
+            <span class="badge-companion">Companion</span>
+          </div>
+        </div>
+        <p class="auth-subtitle">Sign in with your SARAL credentials</p>
+      </header>
+
+      <!-- Status / Error Alert Banner -->
+      <div id="auth-alert" class="alert-banner" role="alert" style="display: none;">
+        <svg class="alert-icon" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd"/>
+        </svg>
+        <span id="auth-alert-message" class="alert-text">Error message</span>
+      </div>
+
+      <!-- Sign In Form -->
+      <form id="auth-form" class="auth-form" novalidate>
+        <div class="form-group">
+          <label for="input-email" class="form-label">Email Address</label>
+          <div class="input-wrapper">
+            <input 
+              type="email" 
+              id="input-email" 
+              class="form-input" 
+              placeholder="you@example.com" 
+              autocomplete="email" 
+              required
+            />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="input-password" class="form-label">Password</label>
+          <div class="input-wrapper password-wrapper">
+            <input 
+              type="password" 
+              id="input-password" 
+              class="form-input" 
+              placeholder="••••••••••••" 
+              autocomplete="current-password" 
+              required
+            />
+            <button 
+              type="button" 
+              id="btn-toggle-password" 
+              class="btn-icon-addon" 
+              aria-label="Toggle password visibility"
+              tabindex="-1"
+            >
+              <svg id="eye-icon-show" class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <svg id="eye-icon-hide" class="icon-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" id="btn-submit-login" class="btn-primary">
+          <span class="btn-text">Sign In</span>
+          <span class="btn-spinner" style="display: none;"></span>
+        </button>
+      </form>
+        <!-- Quick Pair with Web App Option -->
+        <div class="auth-divider">
+          <span>or pair with web app</span>
+        </div>
+        <div class="quick-pair-box">
+          <input type="text" id="input-pairing-code" class="form-input text-center font-mono font-bold" placeholder="SARAL-XXXX-XX" maxlength="16" />
+          <button type="button" id="btn-submit-pair-code" class="btn-secondary-pair">
+            Pair
+          </button>
+        </div>
+
+
+      <!-- Auth Footnote & Mode Info -->
+      <div class="auth-footer-notice">
+        <p class="notice-text">
+          Connects to your <strong>SARAL Personal Workspace</strong>. No payment keys or service-role secrets are ever stored in the browser.
+        </p>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- VIEW B: LOGGED-IN / COMPANION HUB                        -->
+    <!-- ======================================================== -->
+    <section id="view-logged-in" class="view-panel" style="display: none;">
+      <!-- Hub Top Bar -->
+      <header class="hub-header">
+        <div class="user-profile-badge">
+          <div class="avatar-circle">
+            <span id="user-avatar-initials">SG</span>
+          </div>
+          <div class="user-meta">
+            <div class="greeting-row">
+              <span class="greeting-label">Hi, <strong id="user-display-name">User</strong></span>
+            </div>
+            <div class="connection-status-pill">
+              <span class="status-dot"></span>
+              <span class="status-pill-text">Connected to SARAL</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hub-header-actions">
+          <button type="button" id="btn-open-privacy" class="btn-icon-top" title="Privacy Center & Settings">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15">
+              <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/>
+            </svg>
+          </button>
+          <button type="button" id="btn-sign-out" class="btn-disconnect" title="Disconnect and sign out">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+              <path fill-rule="evenodd" d="M3 4.25A2.25 2.25 0 015.25 2h5.5A2.25 2.25 0 0113 4.25v2a.75.75 0 01-1.5 0v-2a.75.75 0 00-.75-.75h-5.5a.75.75 0 00-.75.75v11.5c0 .414.336.75.75.75h5.5a.75.75 0 00.75-.75v-2a.75.75 0 011.5 0v2A2.25 2.25 0 0110.75 18h-5.5A2.25 2.25 0 013 15.75V4.25z" clip-rule="evenodd"/>
+              <path fill-rule="evenodd" d="M19 10a.75.75 0 00-.75-.75H8.704l2.473-2.473a.75.75 0 10-1.06-1.06l-3.75 3.75a.75.75 0 000 1.06l3.75 3.75a.75.75 0 101.06-1.06L8.704 10.75h9.546A.75.75 0 0019 10z" clip-rule="evenodd"/>
+            </svg>
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Active Domain Context Strip -->
+      <div class="active-context-strip">
+        <span class="context-label">Current Domain:</span>
+        <span id="active-domain-name" class="context-domain">Checking tab...</span>
+      </div>
+
+      <!-- Metric Readiness Cards (Ready for Phase 2–4 expansion) -->
+      <div class="metric-cards-container">
+        
+        <!-- Card 1: Rewards & Vouchers (Interactive Accordion) -->
+        <div id="card-rewards" class="readiness-card readiness-card-interactive" role="button" tabindex="0" title="Click to view verified vouchers for this site">
+          <div class="card-icon-container icon-rewards">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+              <line x1="7" y1="7" x2="7.01" y2="7"></line>
+            </svg>
+          </div>
+          <div class="card-content">
+            <div class="card-title-row">
+              <span class="card-title">Rewards & Vouchers</span>
+              <span id="rewards-card-badge" class="card-tag card-tag-active">Phase 2</span>
+            </div>
+            <p id="rewards-metric-text" class="card-metric">Checking vouchers for current domain...</p>
+          </div>
+          <div class="card-chevron-container">
+            <svg id="rewards-chevron" class="card-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+              <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Dropdown Accordion Panel for Vouchers -->
+        <div id="rewards-dropdown-panel" class="accordion-panel" style="display: none;">
+          <div class="accordion-inner">
+            <div class="accordion-header-row">
+              <span id="accordion-domain-title" class="accordion-domain-label">Active Site Vouchers</span>
+              <button type="button" id="btn-browse-all-perks" class="btn-text-action">All Stores</button>
+            </div>
+            <div id="popup-voucher-list" class="popup-voucher-list">
+              <!-- Dynamically populated via popup.js -->
+            </div>
+            <div id="popup-voucher-empty" class="popup-voucher-empty" style="display: none;">
+              <p class="empty-primary">No active vouchers detected on this store.</p>
+              <p class="empty-secondary">Browse partner stores with live discounts:</p>
+              <div id="partner-stores-chips" class="partner-chips-row">
+                <span class="partner-chip" data-domain="amazon.in">Amazon</span>
+                <span class="partner-chip" data-domain="lavazza.com">Lavazza</span>
+                <span class="partner-chip" data-domain="swiggy.com">Swiggy</span>
+                <span class="partner-chip" data-domain="myntra.com">Myntra</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Subscriptions (Interactive Accordion) -->
+        <div id="card-subscriptions" class="readiness-card readiness-card-interactive" role="button" tabindex="0" title="Click to view recurring auto-pay mandates">
+          <div class="card-icon-container icon-subs">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
+            </svg>
+          </div>
+          <div class="card-content">
+            <div class="card-title-row">
+              <span class="card-title">Subscriptions</span>
+              <span id="subs-card-badge" class="card-tag">MONITORED</span>
+            </div>
+            <p id="subs-metric-text" class="card-metric">Loading monitored auto-pay mandates...</p>
+          </div>
+          <div class="card-chevron-container">
+            <svg id="subs-chevron" class="card-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+              <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Dropdown Accordion Panel for Subscriptions -->
+        <div id="subscriptions-dropdown-panel" class="accordion-panel" style="display: none;">
+          <div class="accordion-inner">
+            <div class="accordion-header-row">
+              <span id="subs-accordion-title" class="accordion-domain-label">Monitored Mandates</span>
+              <button type="button" id="btn-open-saral-activity" class="btn-text-action" title="Open SARAL Activity dashboard">Manage on SARAL ↗</button>
+            </div>
+            <div id="popup-subs-list" class="popup-subs-list">
+              <!-- Dynamically populated via popup.js -->
+            </div>
+            <div id="popup-subs-empty" class="popup-subs-empty" style="display: none;">
+              <p class="empty-primary">No recurring mandates active on this domain.</p>
+              <button type="button" id="btn-view-all-mandates" class="btn-secondary-sm">View All Monitored Mandates</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: Password Guardian (Interactive Security Hub) -->
+        <div id="card-security" class="readiness-card readiness-card-interactive" role="button" tabindex="0" title="Click to view password health and generator">
+          <div class="card-icon-container icon-security">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              <polyline points="9 12 11 14 15 10"></polyline>
+            </svg>
+          </div>
+          <div class="card-content">
+            <div class="card-title-row">
+              <span class="card-title">Password Guardian</span>
+              <span id="security-card-badge" class="card-tag">COACH ACTIVE</span>
+            </div>
+            <p id="security-metric-text" class="card-metric">Assessing domain security habits...</p>
+          </div>
+          <div class="card-chevron-container">
+            <svg id="security-chevron" class="card-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+              <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Dropdown Accordion Panel for Password Guardian (Phase 4) -->
+        <div id="security-dropdown-panel" class="accordion-panel" style="display: none;">
+          <div class="accordion-inner">
+            
+            <!-- 1. Security Habit Audit Summary -->
+            <div class="security-audit-block">
+              <div class="audit-score-row">
+                <div class="audit-score-info">
+                  <span class="audit-label">Vault Health Score</span>
+                  <div class="audit-score-display">
+                    <span id="audit-health-score" class="score-number">78</span>
+                    <span class="score-max">/ 100</span>
+                  </div>
+                </div>
+                <div class="audit-tags-group">
+                  <span id="audit-reused-tag" class="audit-chip chip-warning">1 Reused</span>
+                  <span id="audit-stale-tag" class="audit-chip chip-warning">1 >90d Old</span>
+                  <span id="audit-breached-tag" class="audit-chip chip-danger">1 Breached</span>
+                </div>
+              </div>
+              <div class="score-progress-track">
+                <div id="audit-score-bar" class="score-progress-fill" style="width: 78%;"></div>
+              </div>
+            </div>
+
+            <!-- 2. Active Domain Credential Status ("The Nag") -->
+            <div id="domain-credential-box" class="domain-cred-box">
+              <div class="domain-cred-header">
+                <span id="domain-cred-title" class="domain-cred-service">amazon.in Credential</span>
+                <span id="domain-cred-status" class="domain-status-pill pill-danger">NEEDS ROTATION</span>
+              </div>
+              <div class="domain-cred-login-row">
+                <span id="domain-cred-user" class="domain-cred-user"></span>
+                <span class="domain-cred-pwd">••••••••••••</span>
+              </div>
+              <div id="domain-cred-nag" class="domain-cred-nag-text">
+                ⚠️ Last rotated 114 days ago — Reused on other sites and found in breach dataset!
+              </div>
+            </div>
+
+            <!-- 3. Password Generator Widget -->
+            <div class="generator-widget-block">
+              <div class="gen-widget-header">
+                <span class="gen-title">Generate Strong Password</span>
+                <button type="button" id="btn-refresh-popup-pwd" class="btn-icon-tiny" title="Regenerate password">
+                  <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Output Box -->
+              <div class="gen-output-container">
+                <span id="popup-gen-pwd" class="gen-pwd-display">••••••••••••••••</span>
+                <button type="button" id="btn-copy-popup-gen" class="btn-popup-copy">
+                  <svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"/>
+                    <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z"/>
+                  </svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+
+              <!-- Controls: Length Slider & Symbols -->
+              <div class="gen-controls-row">
+                <div class="gen-slider-group">
+                  <label for="popup-gen-len-slider" class="gen-slider-label">
+                    Length: <strong id="popup-gen-len-val">16</strong>
+                  </label>
+                  <input type="range" id="popup-gen-len-slider" min="8" max="32" value="16" class="gen-slider" />
+                </div>
+                <label class="gen-check-label" for="popup-gen-symbols-check">
+                  <input type="checkbox" id="popup-gen-symbols-check" checked />
+                  <span>Symbols</span>
+                </label>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Card 4: Merchant Card Footprint (Phase 5) -->
+        <div id="card-footprint" class="readiness-card readiness-card-interactive" role="button" tabindex="0" title="Click to view payment channels previously used on this merchant">
+          <div class="card-icon-container icon-footprint">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+              <line x1="2" y1="10" x2="22" y2="10"></line>
+            </svg>
+          </div>
+          <div class="card-content">
+            <div class="card-title-row">
+              <span class="card-title">Card Footprint</span>
+              <span id="footprint-card-badge" class="card-tag">PCI SAFE</span>
+            </div>
+            <p id="footprint-metric-text" class="card-metric">Checking payment history for site...</p>
+          </div>
+          <div class="card-chevron-container">
+            <svg id="footprint-chevron" class="card-chevron" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
+              <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Dropdown Accordion Panel for Card Footprint (Phase 5) -->
+        <div id="footprint-dropdown-panel" class="accordion-panel" style="display: none;">
+          <div class="accordion-inner">
+            <div class="accordion-header-row">
+              <span id="footprint-domain-title" class="accordion-domain-label">Merchant Payment Records</span>
+              <span class="card-tag card-tag-green">NO CVV STORED</span>
+            </div>
+            <div id="popup-footprint-list" class="popup-footprint-list">
+              <!-- Dynamically populated via popup.js -->
+            </div>
+            <div id="popup-footprint-empty" class="popup-footprint-empty" style="display: none;">
+              <p class="empty-primary">No previous payment transactions recorded on this merchant.</p>
+              <p class="empty-secondary">Payment channels will be safely logged in SARAL when you transact.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Quick Toggle Controls Section -->
+      <div class="toggles-section">
+        <h4 class="toggles-heading">Quick Controls</h4>
+
+        <!-- Toggle: Vouchers -->
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <span class="toggle-name">Vouchers</span>
+            <span class="toggle-desc">Show deals on active stores</span>
+          </div>
+          <label class="switch-toggle" for="toggle-vouchers">
+            <input type="checkbox" id="toggle-vouchers" checked />
+            <span class="slider-round"></span>
+          </label>
+        </div>
+
+        <!-- Toggle: Subscriptions -->
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <span class="toggle-name">Subscriptions</span>
+            <span class="toggle-desc">Alert on checkout recurring terms</span>
+          </div>
+          <label class="switch-toggle" for="toggle-subs">
+            <input type="checkbox" id="toggle-subs" checked />
+            <span class="slider-round"></span>
+          </label>
+        </div>
+
+        <!-- Toggle: Password Alert -->
+        <div class="toggle-row">
+          <div class="toggle-info">
+            <span class="toggle-name">Password Alert</span>
+            <span class="toggle-desc">Warn against reused credentials</span>
+          </div>
+          <label class="switch-toggle" for="toggle-passwords">
+            <input type="checkbox" id="toggle-passwords" checked />
+            <span class="slider-round"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Hub Footer -->
+      <footer class="hub-footer">
+        <div class="footer-status-row">
+          <div class="footer-ping">
+            <span id="footer-ping-dot" class="ping-dot"></span>
+            <span id="footer-ping-text">Connecting...</span>
+          </div>
+          <span id="footer-env-indicator" class="env-pill">Real API</span>
+          <span class="version-tag">v1.0.0</span>
+        </div>
+      </footer>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- VIEW C: PRIVACY CENTER & SETTINGS (PHASE 5)             -->
+    <!-- ======================================================== -->
+    <section id="view-privacy" class="view-panel" style="display: none;">
+      <!-- Header -->
+      <header class="privacy-header">
+        <button type="button" id="btn-back-from-privacy" class="btn-back" title="Back to Companion Hub">
+          <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
+            <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+          </svg>
+          <span>Back</span>
+        </button>
+        <h3 class="privacy-title">Privacy & Data Controls</h3>
+      </header>
+
+      <!-- Action Toast Banner -->
+      <div id="privacy-toast" class="privacy-toast" style="display: none;">
+        <span id="privacy-toast-msg">Settings saved</span>
+      </div>
+
+      <!-- Scrollable content -->
+      <div class="privacy-content-scroll">
+        
+        <!-- 1. Active Permissions Audit -->
+        <div class="privacy-card">
+          <h4 class="privacy-card-title">Browser Permissions Disclosure</h4>
+          <p class="privacy-card-desc">SARAL Companion is built with zero-trust principles. Only strictly needed client permissions are active:</p>
+          <div class="perm-list">
+            <div class="perm-item">
+              <span class="perm-badge">storage</span>
+              <span class="perm-desc">Local encrypted vault and preference sync</span>
+            </div>
+            <div class="perm-item">
+              <span class="perm-badge">activeTab</span>
+              <span class="perm-desc">Matches active store hostname for rewards</span>
+            </div>
+            <div class="perm-item">
+              <span class="perm-badge">clipboardWrite</span>
+              <span class="perm-desc">One-click safe copy for codes and passwords</span>
+            </div>
+            <div class="perm-item">
+              <span class="perm-badge">pwnedpasswords</span>
+              <span class="perm-desc">k-Anonymity breach lookup (prefix only)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Feature Toggles -->
+        <div class="privacy-card">
+          <h4 class="privacy-card-title">Feature Automation Controls</h4>
+          
+          <div class="privacy-toggle-row">
+            <div class="toggle-info">
+              <span class="toggle-name">Vouchers & Rewards</span>
+              <span class="toggle-desc">Show deals on merchant stores</span>
+            </div>
+            <label class="switch-toggle" for="toggle-privacy-vouchers">
+              <input type="checkbox" id="toggle-privacy-vouchers" checked />
+              <span class="slider-round"></span>
+            </label>
+          </div>
+
+          <div class="privacy-toggle-row">
+            <div class="toggle-info">
+              <span class="toggle-name">Subscription Auto-Pay Alerts</span>
+              <span class="toggle-desc">Surfaces monitored mandates and burn</span>
+            </div>
+            <label class="switch-toggle" for="toggle-privacy-subs">
+              <input type="checkbox" id="toggle-privacy-subs" checked />
+              <span class="slider-round"></span>
+            </label>
+          </div>
+
+          <div class="privacy-toggle-row">
+            <div class="toggle-info">
+              <span class="toggle-name">Password Guardian & Nags</span>
+              <span class="toggle-desc">Warns on stale, weak, or reused passwords</span>
+            </div>
+            <label class="switch-toggle" for="toggle-privacy-passwords">
+              <input type="checkbox" id="toggle-privacy-passwords" checked />
+              <span class="slider-round"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 3. Local Data & Cache Control -->
+        <div class="privacy-card">
+          <h4 class="privacy-card-title">Local Data & Cache Control</h4>
+          <p class="privacy-card-desc">Safely manage or wipe client-side records from this browser profile:</p>
+
+          <div class="privacy-actions-stack">
+            <button type="button" id="btn-clear-cache" class="btn-privacy-action">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+              </svg>
+              <span>Clear Local Cache & Domain History</span>
+            </button>
+
+            <button type="button" id="btn-purge-vault" class="btn-privacy-action btn-danger-action">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+              </svg>
+              <span>Purge Local Encrypted Vault & Salt</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Privacy Footer -->
+      <footer class="hub-footer">
+        <div class="footer-status-row">
+          <span class="version-tag">SARAL Privacy Shield</span>
+          <span class="version-tag">v1.0.0</span>
+        </div>
+      </footer>
+    </section>
+
+  </div>
+
+  <!-- Client Scripts -->
+  <script src="utils/crypto.js"></script>
+  <script src="utils/storage.js"></script>
+  <script src="utils/api.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
+

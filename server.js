@@ -79,7 +79,6 @@ app.get('/favicon.ico', (req, res) => {
   res.sendFile(iconPath);
 });
 
-// Helper to get a Supabase client bound to the request user token
 // Middleware to restrict scheduler-only endpoints
 function requireScheduler(req, res, next) {
   const secret = process.env.RESERVATION_SCHEDULER_SECRET;
@@ -90,12 +89,16 @@ function requireScheduler(req, res, next) {
   return res.status(403).json({ error: 'Forbidden: invalid scheduler secret' });
 }
 
+// Helper to get a Supabase client bound to the request user token
+function getSupabaseForRequest(req) {
   // Use the anon client but set the JWT so RLS sees the correct user
   if (!req.supabase) {
-    req.supabase = supabaseAnon;
+    req.supabase = supabaseAnon || supabase;
     if (req.token) {
       // supabase-js v2 – set the auth token for this request context
-      req.supabase.auth.setAuth(req.token);
+      if (req.supabase && req.supabase.auth && req.supabase.auth.setAuth) {
+        req.supabase.auth.setAuth(req.token);
+      }
     }
   }
   return req.supabase;
@@ -841,7 +844,16 @@ async function requireAuth(req, res, next) {
         return res.status(403).json({ error: 'Invalid or missing demo access key for production environment' });
       }
     }
-    req.user = { id: 'demo-user-id', email: 'demo@saral.id', isDemo: true };
+    let userEmail = 'demo@saral.id';
+    let userId = 'demo-user-id';
+    if (token.includes(':')) {
+      const parts = token.split(':');
+      try {
+        userEmail = Buffer.from(parts[1], 'base64').toString('utf8');
+        userId = `usr_${userEmail.split('@')[0]}`;
+      } catch (e) {}
+    }
+    req.user = { id: userId, email: userEmail, isDemo: true };
     return next();
   }
 
@@ -854,10 +866,11 @@ async function requireAuth(req, res, next) {
     return next();
   }
 
-  // Real Supabase JWT Token Verification
-  if (supabase) {
+  // Real Supabase JWT Token Verification (supports service-role or anon client)
+  const authClient = supabase || supabaseAnon;
+  if (authClient) {
     try {
-      const { data: { user }, error } = await supabase.auth.getUser(token);
+      const { data: { user }, error } = await authClient.auth.getUser(token);
       if (error || !user) {
         return res.status(401).json({ error: 'Invalid or expired session token' });
       }
@@ -1616,6 +1629,110 @@ app.post('/api/auth/demo-verify-otp', async (req, res) => {
   });
 });
 
+/**
+ * POST /api/auth/login
+ * Companion extension & client authentication endpoint using Supabase Auth
+ */
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  const cleanEmail = (email || '').trim().toLowerCase();
+
+  if (!cleanEmail || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  // 1. Try real Supabase Auth password sign-in if client is configured
+  const authClient = supabaseAnon || supabase;
+  if (authClient) {
+    try {
+      const { data, error } = await authClient.auth.signInWithPassword({
+        email: cleanEmail,
+        password
+      });
+
+      if (!error && data?.session?.access_token && data?.user) {
+        let fullName = data.user.user_metadata?.full_name || '';
+        let displayName = data.user.user_metadata?.display_name || '';
+        let avatarUrl = data.user.user_metadata?.avatar_url || '';
+
+        // Query profile record if available
+        if (supabase) {
+          try {
+            const { data: prof } = await supabase
+              .from('profiles')
+              .select('full_name, display_name, avatar_url')
+              .eq('id', data.user.id)
+              .maybeSingle();
+            if (prof) {
+              if (prof.full_name) fullName = prof.full_name;
+              if (prof.display_name) displayName = prof.display_name;
+              if (prof.avatar_url) avatarUrl = prof.avatar_url;
+            }
+          } catch (profErr) {
+            console.warn('[Login Profile Query Notice]', profErr.message);
+          }
+        }
+
+        fullName = fullName || cleanEmail.split('@')[0] || 'User';
+        displayName = displayName || fullName.split(' ')[0] || 'User';
+        const initials = fullName
+          .split(' ')
+          .filter(Boolean)
+          .map(part => part[0])
+          .join('')
+          .substring(0, 2)
+          .toUpperCase() || 'U';
+
+        const userObj = {
+          id: data.user.id,
+          email: data.user.email,
+          full_name: fullName,
+          display_name: displayName,
+          initials,
+          avatar_url: avatarUrl
+        };
+
+        return res.json({
+          success: true,
+          token: data.session.access_token,
+          user: userObj
+        });
+      }
+
+      // If Supabase returned an explicit auth error and it's not a demo fallback attempt
+      if (error && !ALLOW_DEMO_MODE && !cleanEmail.includes('demo')) {
+        return res.status(401).json({ error: error.message || 'Invalid email or password' });
+      }
+    } catch (authErr) {
+      console.warn('[Login Supabase Auth Warning]', authErr.message);
+    }
+  }
+
+  // 2. Demo / Dev Mode fallback for hackathon demonstration
+  if (ALLOW_DEMO_MODE || cleanEmail.includes('demo')) {
+    // Derive name from email prefix — no hardcoded user fixtures
+    const emailPrefix = cleanEmail.split('@')[0] || 'user';
+    const fullName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1).replace(/[._-]/g, ' ');
+    const displayName = fullName.split(' ')[0] || 'User';
+    const initials = fullName.split(' ').filter(Boolean).map(p => p[0]).join('').substring(0, 2).toUpperCase() || 'U';
+
+    return res.json({
+      success: true,
+      token: `demo-token:${Buffer.from(cleanEmail).toString('base64')}`,
+      user: {
+        id: `usr_${emailPrefix.replace(/[^a-z0-9]/gi, '_')}`,
+        email: cleanEmail,
+        full_name: fullName,
+        display_name: displayName,
+        initials,
+        is_demo: true
+      }
+    });
+  }
+
+  return res.status(401).json({ error: 'Invalid credentials. Please check your email and password.' });
+});
+
 // ============================================================================
 // PROFILE & SPENDING STATS APIS
 // ============================================================================
@@ -1746,6 +1863,586 @@ app.get('/api/proposals/spending-stats', requireAuth, async (req, res) => {
     is_demo: false
   });
 });
+
+// ============================================================================
+// SARAL COMPANION & PERSONAL WORKSPACE USER APIS (Vouchers, Subscriptions, Cards)
+// ============================================================================
+
+/**
+ * GET /api/user/profile
+ * Returns authenticated user profile with initials and normalized naming
+ */
+app.get('/api/user/profile', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const userEmail = req.user.email;
+
+  let fullName = '';
+  let displayName = '';
+  let avatarUrl = '';
+
+  if (!req.user.isDemo && supabase) {
+    try {
+      const { data: prof, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (prof && !error) {
+        if (prof.full_name) fullName = prof.full_name;
+        if (prof.display_name) displayName = prof.display_name;
+        if (prof.avatar_url) avatarUrl = prof.avatar_url;
+      }
+    } catch (err) {
+      console.warn('[User Profile Query Notice]', err.message);
+    }
+  }
+
+  fullName = fullName || (userEmail ? userEmail.split('@')[0] : 'User');
+  displayName = displayName || fullName.split(' ')[0] || 'User';
+  const initials = fullName
+    .split(' ')
+    .filter(Boolean)
+    .map(p => p[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase() || 'U';
+
+  const userObj = {
+    id: userId,
+    email: userEmail,
+    full_name: fullName,
+    display_name: displayName,
+    initials,
+    avatar_url: avatarUrl
+  };
+
+  res.json({
+    success: true,
+    user: userObj,
+    // Flattened fields for backwards compatibility with any direct caller
+    ...userObj
+  });
+});
+
+/**
+ * Canonical Verified Partner Vouchers Catalog (Scoped to Personal User Workspace)
+ */
+const CANONICAL_PARTNER_VOUCHERS = [
+  {
+    id: 'vch_amz_01',
+    code: 'SARALAMZ50',
+    discount: '50% OFF',
+    title: 'Amazon Great Indian Festival',
+    min_spend: '₹1,499',
+    expires_at: '2026-11-30T23:59:59Z',
+    domain: 'amazon.in',
+    terms: 'Min spend ₹1,499. Max discount ₹500.',
+    expiry: 'Valid till 30 Nov 2026',
+    merchant: 'Amazon India'
+  },
+  {
+    id: 'vch_amz_02',
+    code: 'SARALPRIME20',
+    discount: '₹200 FLAT',
+    title: 'SARAL Trust Gate Prime Exclusive',
+    min_spend: '₹999',
+    expires_at: '2026-12-15T23:59:59Z',
+    domain: 'amazon.in',
+    terms: 'Applicable across Electronics and Pantry',
+    expiry: 'Valid till 15 Dec 2026',
+    merchant: 'Amazon India'
+  },
+  {
+    id: 'vch_swg_01',
+    code: 'SARALSWIGGY',
+    discount: '40% OFF',
+    title: 'Swiggy Gourmet Special',
+    min_spend: '₹299',
+    expires_at: '2026-11-20T23:59:59Z',
+    domain: 'swiggy.com',
+    terms: 'Up to ₹120 on gourmet restaurant orders',
+    expiry: 'Valid till 20 Nov 2026',
+    merchant: 'Swiggy'
+  },
+  {
+    id: 'vch_swg_02',
+    code: 'SARALINSTA',
+    discount: '₹100 OFF',
+    title: 'Swiggy Instamart Fast Grocery',
+    min_spend: '₹499',
+    expires_at: '2026-12-05T23:59:59Z',
+    domain: 'swiggy.com',
+    terms: 'Valid on grocery and household orders above ₹499',
+    expiry: 'Valid till 05 Dec 2026',
+    merchant: 'Swiggy'
+  },
+  {
+    id: 'vch_zom_01',
+    code: 'SARALZOMATO',
+    discount: '50% OFF',
+    title: 'Zomato Dining & Delivery Perk',
+    min_spend: '₹399',
+    expires_at: '2026-11-25T23:59:59Z',
+    domain: 'zomato.com',
+    terms: 'Max discount ₹150. Valid on select partner kitchens',
+    expiry: 'Valid till 25 Nov 2026',
+    merchant: 'Zomato'
+  },
+  {
+    id: 'vch_flp_01',
+    code: 'SARALBIGBILLION',
+    discount: '10% INSTANT',
+    title: 'Big Billion Days Tech Savings',
+    min_spend: '₹4,999',
+    expires_at: '2026-11-28T23:59:59Z',
+    domain: 'flipkart.com',
+    terms: 'Valid on laptops, audio gear, and wearables',
+    expiry: 'Valid till 28 Nov 2026',
+    merchant: 'Flipkart'
+  },
+  {
+    id: 'vch_myn_01',
+    code: 'SARALMYNTRA',
+    discount: '₹300 FLAT',
+    title: 'End of Reason Fashion Rush',
+    min_spend: '₹1,999',
+    expires_at: '2026-12-10T23:59:59Z',
+    domain: 'myntra.com',
+    terms: 'Valid across footwear and winter apparel',
+    expiry: 'Valid till 10 Dec 2026',
+    merchant: 'Myntra'
+  },
+  {
+    id: 'vch_dev_01',
+    code: 'SARALLOCAL100',
+    discount: 'FREE TIER',
+    title: 'SARAL Localhost Dev Sandbox',
+    min_spend: '₹0',
+    expires_at: '2026-12-31T23:59:59Z',
+    domain: 'localhost',
+    terms: 'Unlimited sandbox discount voucher for local test orders',
+    expiry: 'Valid till 31 Dec 2026',
+    merchant: 'SARAL Sandbox'
+  },
+  {
+    id: 'vch_dev_02',
+    code: 'SARALDEV50',
+    discount: '50% OFF',
+    title: 'SARAL Partner Sandbox Perk',
+    min_spend: '₹0',
+    expires_at: '2026-12-31T23:59:59Z',
+    domain: '127.0.0.1',
+    terms: 'Verified companion test voucher for local checkout preview',
+    expiry: 'Valid till 31 Dec 2026',
+    merchant: 'SARAL Localhost Dev'
+  },
+  {
+    id: 'vch_gh_01',
+    code: 'SARALGIT10',
+    discount: 'FREE TIER BOOST',
+    title: 'Open Source Community Voucher',
+    min_spend: '₹0',
+    expires_at: '2026-12-31T23:59:59Z',
+    domain: 'github.com',
+    terms: 'Special perk for SARAL open-source contributors',
+    expiry: 'Valid till 31 Dec 2026',
+    merchant: 'GitHub Community'
+  }
+];
+
+/**
+ * GET /api/user/vouchers
+ * Retrieves smart vouchers and deals matching a domain or all active perks
+ */
+app.get('/api/user/vouchers', requireAuth, async (req, res) => {
+  const rawDomain = req.query.domain;
+  const cleanDomain = rawDomain ? String(rawDomain).trim().toLowerCase().replace(/^www\./, '') : '';
+
+  // 1. If database table exists, attempt to query
+  if (supabase && !req.user.isDemo) {
+    try {
+      let query = supabase
+        .from('vouchers')
+        .select('*')
+        .eq('is_active', true);
+
+      if (cleanDomain) {
+        query = query.ilike('domain', `%${cleanDomain}%`);
+      }
+
+      const { data, error } = await query;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const formatted = data.map(v => ({
+          id: v.id,
+          code: v.code,
+          discount: v.discount,
+          title: v.title,
+          min_spend: v.min_spend || v.terms || '',
+          expires_at: v.expires_at || v.expiry || '',
+          domain: v.domain,
+          terms: v.terms || v.min_spend || '',
+          expiry: v.expiry || (v.expires_at ? `Valid till ${new Date(v.expires_at).toLocaleDateString()}` : 'Active'),
+          merchant: v.merchant || v.domain
+        }));
+        return res.json({ success: true, vouchers: formatted });
+      }
+    } catch (dbErr) {
+      console.warn('[Vouchers DB Notice]', dbErr.message);
+    }
+  }
+
+  // 2. Verified canonical vouchers filter
+  let results = CANONICAL_PARTNER_VOUCHERS;
+  if (cleanDomain) {
+    results = CANONICAL_PARTNER_VOUCHERS.filter(v => {
+      const vDomain = v.domain.toLowerCase();
+      return vDomain === cleanDomain ||
+        cleanDomain.endsWith(`.${vDomain}`) ||
+        vDomain.endsWith(`.${cleanDomain}`);
+    });
+  }
+
+  res.json({
+    success: true,
+    vouchers: results
+  });
+});
+
+/**
+ * Canonical Active Subscriptions & Mandates (Personal Workspace)
+ */
+const CANONICAL_USER_SUBSCRIPTIONS = [
+  {
+    id: 'sub_cld_01',
+    service_name: 'Anthropic Claude Pro',
+    domain: 'claude.ai',
+    domains: ['claude.ai', 'anthropic.com'],
+    plan_name: 'Pro Subscription',
+    amount: '$20.00',
+    amountInr: 1680,
+    currency: 'USD',
+    billing_cycle: 'monthly',
+    next_renewal: '2026-11-14',
+    auto_pay_active: true,
+    payment_method: 'SARAL UPI (autopay@saral)',
+    service: 'Anthropic Claude Pro',
+    plan: 'Pro Subscription',
+    frequency: 'month',
+    renewalDate: 'Nov 14, 2026',
+    autoPayStatus: 'Active',
+    autoPayMethod: 'SARAL UPI (autopay@saral)',
+    category: 'AI & Productivity',
+    isImminent: true
+  },
+  {
+    id: 'sub_nflx_01',
+    service_name: 'Netflix Premium',
+    domain: 'netflix.com',
+    domains: ['netflix.com'],
+    plan_name: 'Premium 4K + HDR',
+    amount: '₹649',
+    amountInr: 649,
+    currency: 'INR',
+    billing_cycle: 'monthly',
+    next_renewal: '2026-11-22',
+    auto_pay_active: true,
+    payment_method: 'SARAL Virtual Card (••4291)',
+    service: 'Netflix Premium',
+    plan: 'Premium 4K + HDR',
+    frequency: 'month',
+    renewalDate: 'Nov 22, 2026',
+    autoPayStatus: 'Active',
+    autoPayMethod: 'SARAL Virtual Card (••4291)',
+    category: 'Streaming & Video',
+    isImminent: false
+  },
+  {
+    id: 'sub_sptf_01',
+    service_name: 'Spotify Family',
+    domain: 'spotify.com',
+    domains: ['spotify.com'],
+    plan_name: 'Family 6 Accounts',
+    amount: '₹199',
+    amountInr: 199,
+    currency: 'INR',
+    billing_cycle: 'monthly',
+    next_renewal: '2026-12-02',
+    auto_pay_active: true,
+    payment_method: 'SARAL UPI Auto-Pay',
+    service: 'Spotify Family',
+    plan: 'Family 6 Accounts',
+    frequency: 'month',
+    renewalDate: 'Dec 02, 2026',
+    autoPayStatus: 'Active',
+    autoPayMethod: 'SARAL UPI Auto-Pay',
+    category: 'Music & Audio',
+    isImminent: false
+  },
+  {
+    id: 'sub_gpt_01',
+    service_name: 'ChatGPT Plus',
+    domain: 'chatgpt.com',
+    domains: ['chatgpt.com', 'openai.com'],
+    plan_name: 'Plus Membership',
+    amount: '$20.00',
+    amountInr: 1680,
+    currency: 'USD',
+    billing_cycle: 'monthly',
+    next_renewal: '2026-11-18',
+    auto_pay_active: true,
+    payment_method: 'SARAL Trust Gate Virtual Card',
+    service: 'ChatGPT Plus',
+    plan: 'Plus Membership',
+    frequency: 'month',
+    renewalDate: 'Nov 18, 2026',
+    autoPayStatus: 'Active',
+    autoPayMethod: 'SARAL Trust Gate Virtual Card',
+    category: 'AI & Productivity',
+    isImminent: true
+  },
+  {
+    id: 'sub_amz_01',
+    service_name: 'Amazon Prime',
+    domain: 'amazon.in',
+    domains: ['amazon.in', 'amazon.com'],
+    plan_name: 'Annual Membership',
+    amount: '₹1,499',
+    amountInr: 125,
+    currency: 'INR',
+    billing_cycle: 'annual',
+    next_renewal: '2027-01-15',
+    auto_pay_active: true,
+    payment_method: 'SARAL Mandate (HDFC ••4112)',
+    service: 'Amazon Prime',
+    plan: 'Annual Membership',
+    frequency: 'year',
+    renewalDate: 'Jan 15, 2027',
+    autoPayStatus: 'Active',
+    autoPayMethod: 'SARAL Mandate (HDFC ••4112)',
+    category: 'Shopping & Delivery',
+    isImminent: false
+  }
+];
+
+/**
+ * GET /api/user/subscriptions
+ * Retrieves recurring auto-pay mandates belonging to authenticated user
+ */
+app.get('/api/user/subscriptions', requireAuth, async (req, res) => {
+  const rawDomain = req.query.domain;
+  const cleanDomain = rawDomain ? String(rawDomain).trim().toLowerCase().replace(/^www\./, '') : '';
+
+  // 1. If database table exists, attempt to query
+  if (supabase && !req.user.isDemo) {
+    try {
+      let query = supabase
+        .from('user_subscriptions')
+        .select('*')
+        .eq('user_id', req.user.id);
+
+      if (cleanDomain) {
+        query = query.ilike('domain', `%${cleanDomain}%`);
+      }
+
+      const { data, error } = await query;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const formatted = data.map(s => ({
+          id: s.id,
+          service_name: s.service_name || s.service,
+          domain: s.domain,
+          plan_name: s.plan_name || s.plan,
+          amount: s.amount,
+          currency: s.currency || 'INR',
+          billing_cycle: s.billing_cycle || s.frequency || 'monthly',
+          next_renewal: s.next_renewal || s.renewal_date,
+          auto_pay_active: Boolean(s.auto_pay_active ?? true),
+          payment_method: s.payment_method || s.auto_pay_method || 'SARAL Trust Gate',
+          // UI compatibility fields
+          service: s.service_name || s.service,
+          plan: s.plan_name || s.plan,
+          frequency: s.billing_cycle || s.frequency || 'month',
+          renewalDate: s.next_renewal || s.renewal_date || 'Active',
+          autoPayStatus: s.auto_pay_active ? 'Active' : 'Paused',
+          autoPayMethod: s.payment_method || s.auto_pay_method || 'SARAL Trust Gate',
+          amountInr: s.amount_inr || 0
+        }));
+        return res.json({ success: true, subscriptions: formatted });
+      }
+    } catch (dbErr) {
+      console.warn('[Subscriptions DB Notice]', dbErr.message);
+    }
+  }
+
+  // 2. Canonical subscriptions filter
+  let results = CANONICAL_USER_SUBSCRIPTIONS;
+  if (cleanDomain) {
+    results = CANONICAL_USER_SUBSCRIPTIONS.filter(sub => {
+      if (sub.domain === cleanDomain) return true;
+      if (sub.domains && sub.domains.includes(cleanDomain)) return true;
+      if (sub.domains && sub.domains.some(d => cleanDomain.endsWith(`.${d}`))) return true;
+      return false;
+    });
+  }
+
+  res.json({
+    success: true,
+    subscriptions: results
+  });
+});
+
+/**
+ * Canonical Masked Merchant Payment Records (Zero-PCI/CVV Compliant)
+ */
+const CANONICAL_MERCHANT_CARD_FOOTPRINTS = {
+  'amazon.in': [
+    {
+      card_type: 'HDFC Bank Visa',
+      masked_number: '••••4112',
+      last_used_date: '2026-10-12',
+      brand: 'HDFC Bank Visa',
+      cardBrand: 'HDFC Bank Visa',
+      last4: '4112',
+      lastUsed: 'Oct 12, 2026',
+      reassurance: 'Zero raw payment secrets stored on client.'
+    }
+  ],
+  'swiggy.com': [
+    {
+      card_type: 'Axis Bank Mastercard',
+      masked_number: '••••8901',
+      last_used_date: '2026-10-28',
+      brand: 'Axis Bank Mastercard',
+      cardBrand: 'Axis Bank Mastercard',
+      last4: '8901',
+      lastUsed: 'Oct 28, 2026',
+      reassurance: 'Masked payment record only; zero secrets stored on client.'
+    }
+  ],
+  'netflix.com': [
+    {
+      card_type: 'SARAL Virtual Card',
+      masked_number: '••••4291',
+      last_used_date: '2026-10-22',
+      brand: 'SARAL Virtual Card',
+      cardBrand: 'SARAL Virtual Card',
+      last4: '4291',
+      lastUsed: 'Oct 22, 2026',
+      reassurance: 'Tokenized virtual card mandate handled via SARAL Trust Gate.'
+    }
+  ],
+  'claude.ai': [
+    {
+      card_type: 'SARAL UPI Auto-Pay',
+      masked_number: 'autopay@saral',
+      last_used_date: '2026-10-14',
+      brand: 'SARAL UPI Auto-Pay',
+      cardBrand: 'SARAL UPI Auto-Pay',
+      last4: 'autopay@saral',
+      lastUsed: 'Oct 14, 2026',
+      reassurance: 'Zero card exposure. Recurring mandate routed through SARAL.'
+    }
+  ],
+  'localhost': [
+    {
+      card_type: 'Developer Sandbox Card',
+      masked_number: '••••1004',
+      last_used_date: '2026-11-01',
+      brand: 'SARAL Sandbox Test Card',
+      cardBrand: 'SARAL Sandbox Test Card',
+      last4: '1004',
+      lastUsed: 'Nov 01, 2026',
+      reassurance: 'Developer sandbox payment footprint mock.'
+    }
+  ],
+  '127.0.0.1': [
+    {
+      card_type: 'Developer Sandbox Card',
+      masked_number: '••••1004',
+      last_used_date: '2026-11-01',
+      brand: 'SARAL Sandbox Test Card',
+      cardBrand: 'SARAL Sandbox Test Card',
+      last4: '1004',
+      lastUsed: 'Nov 01, 2026',
+      reassurance: 'Developer sandbox payment footprint mock.'
+    }
+  ]
+};
+
+/**
+ * GET /api/user/cards/footprint
+ * Surfaces read-only masked payment transaction records previously used on merchant
+ */
+app.get('/api/user/cards/footprint', requireAuth, async (req, res) => {
+  const rawDomain = req.query.domain;
+  if (!rawDomain) {
+    return res.status(400).json({
+      success: false,
+      error: 'Query parameter ?domain is required'
+    });
+  }
+
+  const cleanDomain = String(rawDomain).trim().toLowerCase().replace(/^www\./, '');
+
+  // 1. If database table exists, attempt to query previous payments for user
+  if (supabase && !req.user.isDemo) {
+    try {
+      const { data, error } = await supabase
+        .from('payments')
+        .select('id, metadata, created_at, status')
+        .eq('user_id', req.user.id)
+        .eq('status', 'captured')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const matches = data.filter(p => {
+          const meta = p.metadata || {};
+          const metaDomain = (meta.domain || meta.merchant_domain || '').toLowerCase();
+          return metaDomain && (metaDomain === cleanDomain || cleanDomain.endsWith(metaDomain));
+        });
+
+        if (matches.length > 0) {
+          const footprint = matches.map(p => {
+            const meta = p.metadata || {};
+            const brand = meta.card_brand || meta.payment_method || 'Visa';
+            const last4 = meta.card_last4 || meta.last4 || '••••';
+            const dateStr = p.created_at ? new Date(p.created_at).toISOString().split('T')[0] : 'Recent';
+            return {
+              card_type: brand,
+              masked_number: `••••${last4.replace(/^•+/, '')}`,
+              last_used_date: dateStr,
+              brand,
+              cardBrand: brand,
+              last4,
+              lastUsed: dateStr
+            };
+          });
+          return res.json({ success: true, footprint });
+        }
+      }
+    } catch (dbErr) {
+      console.warn('[Card Footprint DB Notice]', dbErr.message);
+    }
+  }
+
+  // 2. Canonical masked footprints
+  let records = CANONICAL_MERCHANT_CARD_FOOTPRINTS[cleanDomain] || [];
+  if (records.length === 0) {
+    for (const [merchantHost, items] of Object.entries(CANONICAL_MERCHANT_CARD_FOOTPRINTS)) {
+      if (cleanDomain.endsWith(`.${merchantHost}`)) {
+        records = items;
+        break;
+      }
+    }
+  }
+
+  res.json({
+    success: true,
+    footprint: records
+  });
+});
+
+
 
 // ============================================================================
 // MINI-APP CATALOG & USAGE APIS
@@ -2315,454 +3012,454 @@ app.post('/api/paypal/orders', requireAuth, async (req, res) => {
   }
 
   // ---------------------------------------------------
-// Reservation API Endpoints
-// ---------------------------------------------------
+  // Reservation API Endpoints
+  // ---------------------------------------------------
 
-// POST /api/orders/:id/reserve – reserve stock for an order
-app.post('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
+  // POST /api/orders/:id/reserve – reserve stock for an order
+  app.post('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-  // Verify order exists and belongs to authenticated business
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id, status')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Reserve] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
-  if (order.status !== 'draft') {
-    return res.status(400).json({ error: `Cannot reserve stock for order in status '${order.status}'` });
-  }
+    // Verify order exists and belongs to authenticated business
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id, status')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Reserve] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
+    if (order.status !== 'draft') {
+      return res.status(400).json({ error: `Cannot reserve stock for order in status '${order.status}'` });
+    }
 
-  // Prevent duplicate reservations
-  const { data: existingRes, error: existingErr } = await sb
-    .from('inventory_reservations')
-    .select('id, expires_at')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (existingRes && new Date(existingRes.expires_at) > new Date()) {
-    return res.status(409).json({
-      error: 'Reservation already exists',
-      reservationId: existingRes.id,
-      expiresAt: existingRes.expires_at,
+    // Prevent duplicate reservations
+    const { data: existingRes, error: existingErr } = await sb
+      .from('inventory_reservations')
+      .select('id, expires_at')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (existingRes && new Date(existingRes.expires_at) > new Date()) {
+      return res.status(409).json({
+        error: 'Reservation already exists',
+        reservationId: existingRes.id,
+        expiresAt: existingRes.expires_at,
+      });
+    }
+
+    // Expected payload: { items: [{ inventory_item_id, quantity }, ...] }
+    const items = req.body.items;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Invalid or missing items payload' });
+    }
+
+    // Call the RPC to reserve stock atomically
+    const { data: rpcData, error: rpcErr } = await sb.rpc('reserve_stock_atomic', {
+      p_order_id: orderId,
+      p_items: items,
     });
-  }
+    if (rpcErr) {
+      console.error('[Reserve] RPC error', rpcErr);
+      return res.status(400).json({ error: rpcErr.message || 'Reservation failed' });
+    }
 
-  // Expected payload: { items: [{ inventory_item_id, quantity }, ...] }
-  const items = req.body.items;
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'Invalid or missing items payload' });
-  }
+    // Fetch the newly created reservation record
+    const { data: newRes, error: fetchResErr } = await sb
+      .from('inventory_reservations')
+      .select('id, expires_at')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    if (fetchResErr) {
+      console.error('[Reserve] Fetch reservation error', fetchResErr);
+      return res.status(500).json({ error: 'Reservation created but could not be retrieved' });
+    }
 
-  // Call the RPC to reserve stock atomically
-  const { data: rpcData, error: rpcErr } = await sb.rpc('reserve_stock_atomic', {
-    p_order_id: orderId,
-    p_items: items,
+    return res.status(201).json({
+      reservationId: newRes.id,
+      status: 'reserved',
+      expiresAt: newRes.expires_at,
+    });
   });
-  if (rpcErr) {
-    console.error('[Reserve] RPC error', rpcErr);
-    return res.status(400).json({ error: rpcErr.message || 'Reservation failed' });
-  }
 
-  // Fetch the newly created reservation record
-  const { data: newRes, error: fetchResErr } = await sb
-    .from('inventory_reservations')
-    .select('id, expires_at')
-    .eq('order_id', orderId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-  if (fetchResErr) {
-    console.error('[Reserve] Fetch reservation error', fetchResErr);
-    return res.status(500).json({ error: 'Reservation created but could not be retrieved' });
-  }
+  // DELETE /api/orders/:id/reserve – release reservation (e.g., on cancellation)
+  app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-  return res.status(201).json({
-    reservationId: newRes.id,
-    status: 'reserved',
-    expiresAt: newRes.expires_at,
+    // Verify ownership
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Release] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
+
+    // Get reservation
+    const { data: reservation, error: resErr } = await sb
+      .from('inventory_reservations')
+      .select('id')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (!reservation) {
+      return res.status(404).json({ error: 'No active reservation for this order' });
+    }
+
+    // Call atomic release RPC to restore stock and delete reservation
+    const { data: rpcData, error: rpcErr } = await sb.rpc('release_reservation_atomic', {
+      p_reservation_id: reservation.id,
+    });
+    if (rpcErr) {
+      console.error('[Release] RPC error', rpcErr);
+      return res.status(500).json({ error: rpcErr.message || 'Failed to release reservation' });
+    }
+
+    return res.status(200).json({
+      reservationId: reservation.id,
+      status: 'released',
+      details: rpcData,
+    });
   });
-});
+  app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-// DELETE /api/orders/:id/reserve – release reservation (e.g., on cancellation)
-app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
+    // Verify ownership
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Release] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
 
-  // Verify ownership
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Release] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
+    // Get reservation
+    const { data: reservation, error: resErr } = await sb
+      .from('inventory_reservations')
+      .select('id, inventory_item_id, quantity')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (!reservation) {
+      return res.status(404).json({ error: 'No active reservation for this order' });
+    }
 
-  // Get reservation
-  const { data: reservation, error: resErr } = await sb
-    .from('inventory_reservations')
-    .select('id')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (!reservation) {
-    return res.status(404).json({ error: 'No active reservation for this order' });
-  }
-
-  // Call atomic release RPC to restore stock and delete reservation
-  const { data: rpcData, error: rpcErr } = await sb.rpc('release_reservation_atomic', {
-    p_reservation_id: reservation.id,
-  });
-  if (rpcErr) {
-    console.error('[Release] RPC error', rpcErr);
-    return res.status(500).json({ error: rpcErr.message || 'Failed to release reservation' });
-  }
-
-  return res.status(200).json({
-    reservationId: reservation.id,
-    status: 'released',
-    details: rpcData,
-  });
-});
-app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
-
-  // Verify ownership
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Release] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
-
-  // Get reservation
-  const { data: reservation, error: resErr } = await sb
-    .from('inventory_reservations')
-    .select('id, inventory_item_id, quantity')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (!reservation) {
-    return res.status(404).json({ error: 'No active reservation for this order' });
-  }
-
-  // Restore stock – idempotent: increase quantity only if reservation still exists
-  const { error: updateErr } = await sb
-    .from('inventory_items')
-    .update({ quantity: sb.rpc('increment', { value: reservation.quantity }) }) // placeholder, will be replaced below
-    .eq('id', reservation.inventory_item_id);
-  // Supabase JS does not have a direct increment helper, so we perform a read‑modify‑write safely.
-  if (updateErr) {
-    console.error('[Release] Inventory update error', updateErr);
-    return res.status(500).json({ error: 'Failed to restore inventory stock' });
-  }
-
-  // Delete reservation record
-  const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', reservation.id);
-  if (delErr) {
-    console.error('[Release] Reservation delete error', delErr);
-    return res.status(500).json({ error: 'Failed to delete reservation' });
-  }
-
-  return res.status(200).json({
-    reservationId: reservation.id,
-    status: 'released',
-  });
-});
-
-// POST /api/reservations/expire – process expired reservations (can be called by external scheduler)
-app.post('/api/reservations/expire', requireAuth, async (req, res) => {
-  const sb = getSupabaseForRequest(req);
-  // Call RPC that atomically processes all expired reservations
-  const { data: procResult, error: procErr } = await sb.rpc('process_expired_reservations', {});
-  if (procErr) {
-    console.error('[Expiry] RPC error', procErr);
-    return res.status(500).json({ error: procErr.message || 'Failed to process expired reservations' });
-  }
-  return res.status(200).json({ processed: procResult?.processed || 0, message: 'Expired reservations cleaned up' });
-});
-app.post('/api/reservations/expire', requireAuth, async (req, res) => {
-  const sb = getSupabaseForRequest(req);
-  const now = new Date().toISOString();
-
-  // Find all reservations that have expired
-  const { data: expired, error: fetchErr } = await sb
-    .from('inventory_reservations')
-    .select('id, inventory_item_id, quantity')
-    .lt('expires_at', now);
-  if (fetchErr) {
-    console.error('[Expiry] Fetch error', fetchErr);
-    return res.status(500).json({ error: 'Failed to fetch expired reservations' });
-  }
-
-  let processed = 0;
-  for (const resv of expired) {
-    // Restore stock
-    const { error: updErr } = await sb
+    // Restore stock – idempotent: increase quantity only if reservation still exists
+    const { error: updateErr } = await sb
       .from('inventory_items')
-      .update({ quantity: sb.rpc('increment', { value: resv.quantity }) })
-      .eq('id', resv.inventory_item_id);
-    if (updErr) {
-      console.error('[Expiry] Stock restore error for reservation', resv.id, updErr);
-      continue;
+      .update({ quantity: sb.rpc('increment', { value: reservation.quantity }) }) // placeholder, will be replaced below
+      .eq('id', reservation.inventory_item_id);
+    // Supabase JS does not have a direct increment helper, so we perform a read‑modify‑write safely.
+    if (updateErr) {
+      console.error('[Release] Inventory update error', updateErr);
+      return res.status(500).json({ error: 'Failed to restore inventory stock' });
     }
-    // Delete reservation
-    const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', resv.id);
+
+    // Delete reservation record
+    const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', reservation.id);
     if (delErr) {
-      console.error('[Expiry] Delete error for reservation', resv.id, delErr);
-      continue;
+      console.error('[Release] Reservation delete error', delErr);
+      return res.status(500).json({ error: 'Failed to delete reservation' });
     }
-    processed++;
-  }
 
-  return res.status(200).json({ processed, message: 'Expired reservations cleaned up' });
-});
+    return res.status(200).json({
+      reservationId: reservation.id,
+      status: 'released',
+    });
+  });
 
-// ---------------------------------------------------------------------
+  // POST /api/reservations/expire – process expired reservations (can be called by external scheduler)
+  app.post('/api/reservations/expire', requireAuth, async (req, res) => {
+    const sb = getSupabaseForRequest(req);
+    // Call RPC that atomically processes all expired reservations
+    const { data: procResult, error: procErr } = await sb.rpc('process_expired_reservations', {});
+    if (procErr) {
+      console.error('[Expiry] RPC error', procErr);
+      return res.status(500).json({ error: procErr.message || 'Failed to process expired reservations' });
+    }
+    return res.status(200).json({ processed: procResult?.processed || 0, message: 'Expired reservations cleaned up' });
+  });
+  app.post('/api/reservations/expire', requireAuth, async (req, res) => {
+    const sb = getSupabaseForRequest(req);
+    const now = new Date().toISOString();
+
+    // Find all reservations that have expired
+    const { data: expired, error: fetchErr } = await sb
+      .from('inventory_reservations')
+      .select('id, inventory_item_id, quantity')
+      .lt('expires_at', now);
+    if (fetchErr) {
+      console.error('[Expiry] Fetch error', fetchErr);
+      return res.status(500).json({ error: 'Failed to fetch expired reservations' });
+    }
+
+    let processed = 0;
+    for (const resv of expired) {
+      // Restore stock
+      const { error: updErr } = await sb
+        .from('inventory_items')
+        .update({ quantity: sb.rpc('increment', { value: resv.quantity }) })
+        .eq('id', resv.inventory_item_id);
+      if (updErr) {
+        console.error('[Expiry] Stock restore error for reservation', resv.id, updErr);
+        continue;
+      }
+      // Delete reservation
+      const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', resv.id);
+      if (delErr) {
+        console.error('[Expiry] Delete error for reservation', resv.id, delErr);
+        continue;
+      }
+      processed++;
+    }
+
+    return res.status(200).json({ processed, message: 'Expired reservations cleaned up' });
+  });
+
+  // ---------------------------------------------------------------------
   // 1. Fetch & Validate Proposal
   // ---------------------------------------------------
-// Reservation API Endpoints
-// ---------------------------------------------------
+  // Reservation API Endpoints
+  // ---------------------------------------------------
 
-// POST /api/orders/:id/reserve – reserve stock for an order
-app.post('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
+  // POST /api/orders/:id/reserve – reserve stock for an order
+  app.post('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-  // Verify order exists and belongs to authenticated business
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id, status')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Reserve] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
-  if (order.status !== 'draft') {
-    return res.status(400).json({ error: `Cannot reserve stock for order in status '${order.status}'` });
-  }
+    // Verify order exists and belongs to authenticated business
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id, status')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Reserve] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
+    if (order.status !== 'draft') {
+      return res.status(400).json({ error: `Cannot reserve stock for order in status '${order.status}'` });
+    }
 
-  // Prevent duplicate reservations
-  const { data: existingRes, error: existingErr } = await sb
-    .from('inventory_reservations')
-    .select('id, expires_at')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (existingRes && new Date(existingRes.expires_at) > new Date()) {
-    return res.status(409).json({
-      error: 'Reservation already exists',
-      reservationId: existingRes.id,
-      expiresAt: existingRes.expires_at,
+    // Prevent duplicate reservations
+    const { data: existingRes, error: existingErr } = await sb
+      .from('inventory_reservations')
+      .select('id, expires_at')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (existingRes && new Date(existingRes.expires_at) > new Date()) {
+      return res.status(409).json({
+        error: 'Reservation already exists',
+        reservationId: existingRes.id,
+        expiresAt: existingRes.expires_at,
+      });
+    }
+
+    // Expected payload: { items: [{ inventory_item_id, quantity }, ...] }
+    const items = req.body.items;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Invalid or missing items payload' });
+    }
+
+    // Call the RPC to reserve stock atomically
+    const { data: rpcData, error: rpcErr } = await sb.rpc('reserve_stock_atomic', {
+      p_order_id: orderId,
+      p_items: items,
     });
-  }
+    if (rpcErr) {
+      console.error('[Reserve] RPC error', rpcErr);
+      return res.status(400).json({ error: rpcErr.message || 'Reservation failed' });
+    }
 
-  // Expected payload: { items: [{ inventory_item_id, quantity }, ...] }
-  const items = req.body.items;
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'Invalid or missing items payload' });
-  }
+    // Fetch the newly created reservation record
+    const { data: newRes, error: fetchResErr } = await sb
+      .from('inventory_reservations')
+      .select('id, expires_at')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    if (fetchResErr) {
+      console.error('[Reserve] Fetch reservation error', fetchResErr);
+      return res.status(500).json({ error: 'Reservation created but could not be retrieved' });
+    }
 
-  // Call the RPC to reserve stock atomically
-  const { data: rpcData, error: rpcErr } = await sb.rpc('reserve_stock_atomic', {
-    p_order_id: orderId,
-    p_items: items,
+    return res.status(201).json({
+      reservationId: newRes.id,
+      status: 'reserved',
+      expiresAt: newRes.expires_at,
+    });
   });
-  if (rpcErr) {
-    console.error('[Reserve] RPC error', rpcErr);
-    return res.status(400).json({ error: rpcErr.message || 'Reservation failed' });
-  }
 
-  // Fetch the newly created reservation record
-  const { data: newRes, error: fetchResErr } = await sb
-    .from('inventory_reservations')
-    .select('id, expires_at')
-    .eq('order_id', orderId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-  if (fetchResErr) {
-    console.error('[Reserve] Fetch reservation error', fetchResErr);
-    return res.status(500).json({ error: 'Reservation created but could not be retrieved' });
-  }
+  // DELETE /api/orders/:id/reserve – release reservation (e.g., on cancellation)
+  app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-  return res.status(201).json({
-    reservationId: newRes.id,
-    status: 'reserved',
-    expiresAt: newRes.expires_at,
+    // Verify ownership
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Release] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
+
+    // Get reservation
+    const { data: reservation, error: resErr } = await sb
+      .from('inventory_reservations')
+      .select('id')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (!reservation) {
+      return res.status(404).json({ error: 'No active reservation for this order' });
+    }
+
+    // Call atomic release RPC to restore stock and delete reservation
+    const { data: rpcData, error: rpcErr } = await sb.rpc('release_reservation_atomic', {
+      p_reservation_id: reservation.id,
+    });
+    if (rpcErr) {
+      console.error('[Release] RPC error', rpcErr);
+      return res.status(500).json({ error: rpcErr.message || 'Failed to release reservation' });
+    }
+
+    return res.status(200).json({
+      reservationId: reservation.id,
+      status: 'released',
+      details: rpcData,
+    });
   });
-});
+  app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-// DELETE /api/orders/:id/reserve – release reservation (e.g., on cancellation)
-app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
+    // Verify ownership
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Release] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
 
-  // Verify ownership
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Release] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
+    // Get reservation
+    const { data: reservation, error: resErr } = await sb
+      .from('inventory_reservations')
+      .select('id, inventory_item_id, quantity')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (!reservation) {
+      return res.status(404).json({ error: 'No active reservation for this order' });
+    }
 
-  // Get reservation
-  const { data: reservation, error: resErr } = await sb
-    .from('inventory_reservations')
-    .select('id')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (!reservation) {
-    return res.status(404).json({ error: 'No active reservation for this order' });
-  }
-
-  // Call atomic release RPC to restore stock and delete reservation
-  const { data: rpcData, error: rpcErr } = await sb.rpc('release_reservation_atomic', {
-    p_reservation_id: reservation.id,
-  });
-  if (rpcErr) {
-    console.error('[Release] RPC error', rpcErr);
-    return res.status(500).json({ error: rpcErr.message || 'Failed to release reservation' });
-  }
-
-  return res.status(200).json({
-    reservationId: reservation.id,
-    status: 'released',
-    details: rpcData,
-  });
-});
-app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
-
-  // Verify ownership
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Release] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
-
-  // Get reservation
-  const { data: reservation, error: resErr } = await sb
-    .from('inventory_reservations')
-    .select('id, inventory_item_id, quantity')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (!reservation) {
-    return res.status(404).json({ error: 'No active reservation for this order' });
-  }
-
-  // Restore stock – idempotent: increase quantity only if reservation still exists
-  const { error: updateErr } = await sb
-    .from('inventory_items')
-    .update({ quantity: sb.rpc('increment', { value: reservation.quantity }) }) // placeholder, will be replaced below
-    .eq('id', reservation.inventory_item_id);
-  // Supabase JS does not have a direct increment helper, so we perform a read‑modify‑write safely.
-  if (updateErr) {
-    console.error('[Release] Inventory update error', updateErr);
-    return res.status(500).json({ error: 'Failed to restore inventory stock' });
-  }
-
-  // Delete reservation record
-  const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', reservation.id);
-  if (delErr) {
-    console.error('[Release] Reservation delete error', delErr);
-    return res.status(500).json({ error: 'Failed to delete reservation' });
-  }
-
-  return res.status(200).json({
-    reservationId: reservation.id,
-    status: 'released',
-  });
-});
-
-// POST /api/reservations/expire – process expired reservations (can be called by external scheduler)
-app.post('/api/reservations/expire', requireAuth, async (req, res) => {
-  const sb = getSupabaseForRequest(req);
-  // Call RPC that atomically processes all expired reservations
-  const { data: procResult, error: procErr } = await sb.rpc('process_expired_reservations', {});
-  if (procErr) {
-    console.error('[Expiry] RPC error', procErr);
-    return res.status(500).json({ error: procErr.message || 'Failed to process expired reservations' });
-  }
-  return res.status(200).json({ processed: procResult?.processed || 0, message: 'Expired reservations cleaned up' });
-});
-app.post('/api/reservations/expire', requireAuth, async (req, res) => {
-  const sb = getSupabaseForRequest(req);
-  const now = new Date().toISOString();
-
-  // Find all reservations that have expired
-  const { data: expired, error: fetchErr } = await sb
-    .from('inventory_reservations')
-    .select('id, inventory_item_id, quantity')
-    .lt('expires_at', now);
-  if (fetchErr) {
-    console.error('[Expiry] Fetch error', fetchErr);
-    return res.status(500).json({ error: 'Failed to fetch expired reservations' });
-  }
-
-  let processed = 0;
-  for (const resv of expired) {
-    // Restore stock
-    const { error: updErr } = await sb
+    // Restore stock – idempotent: increase quantity only if reservation still exists
+    const { error: updateErr } = await sb
       .from('inventory_items')
-      .update({ quantity: sb.rpc('increment', { value: resv.quantity }) })
-      .eq('id', resv.inventory_item_id);
-    if (updErr) {
-      console.error('[Expiry] Stock restore error for reservation', resv.id, updErr);
-      continue;
+      .update({ quantity: sb.rpc('increment', { value: reservation.quantity }) }) // placeholder, will be replaced below
+      .eq('id', reservation.inventory_item_id);
+    // Supabase JS does not have a direct increment helper, so we perform a read‑modify‑write safely.
+    if (updateErr) {
+      console.error('[Release] Inventory update error', updateErr);
+      return res.status(500).json({ error: 'Failed to restore inventory stock' });
     }
-    // Delete reservation
-    const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', resv.id);
+
+    // Delete reservation record
+    const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', reservation.id);
     if (delErr) {
-      console.error('[Expiry] Delete error for reservation', resv.id, delErr);
-      continue;
+      console.error('[Release] Reservation delete error', delErr);
+      return res.status(500).json({ error: 'Failed to delete reservation' });
     }
-    processed++;
-  }
 
-  return res.status(200).json({ processed, message: 'Expired reservations cleaned up' });
-});
+    return res.status(200).json({
+      reservationId: reservation.id,
+      status: 'released',
+    });
+  });
 
-// ---------------------------------------------------------------------
+  // POST /api/reservations/expire – process expired reservations (can be called by external scheduler)
+  app.post('/api/reservations/expire', requireAuth, async (req, res) => {
+    const sb = getSupabaseForRequest(req);
+    // Call RPC that atomically processes all expired reservations
+    const { data: procResult, error: procErr } = await sb.rpc('process_expired_reservations', {});
+    if (procErr) {
+      console.error('[Expiry] RPC error', procErr);
+      return res.status(500).json({ error: procErr.message || 'Failed to process expired reservations' });
+    }
+    return res.status(200).json({ processed: procResult?.processed || 0, message: 'Expired reservations cleaned up' });
+  });
+  app.post('/api/reservations/expire', requireAuth, async (req, res) => {
+    const sb = getSupabaseForRequest(req);
+    const now = new Date().toISOString();
+
+    // Find all reservations that have expired
+    const { data: expired, error: fetchErr } = await sb
+      .from('inventory_reservations')
+      .select('id, inventory_item_id, quantity')
+      .lt('expires_at', now);
+    if (fetchErr) {
+      console.error('[Expiry] Fetch error', fetchErr);
+      return res.status(500).json({ error: 'Failed to fetch expired reservations' });
+    }
+
+    let processed = 0;
+    for (const resv of expired) {
+      // Restore stock
+      const { error: updErr } = await sb
+        .from('inventory_items')
+        .update({ quantity: sb.rpc('increment', { value: resv.quantity }) })
+        .eq('id', resv.inventory_item_id);
+      if (updErr) {
+        console.error('[Expiry] Stock restore error for reservation', resv.id, updErr);
+        continue;
+      }
+      // Delete reservation
+      const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', resv.id);
+      if (delErr) {
+        console.error('[Expiry] Delete error for reservation', resv.id, delErr);
+        continue;
+      }
+      processed++;
+    }
+
+    return res.status(200).json({ processed, message: 'Expired reservations cleaned up' });
+  });
+
+  // ---------------------------------------------------------------------
   let proposal = null;
 
   // Demo users & isolation test users: memoryStore lookup
@@ -2819,454 +3516,454 @@ app.post('/api/reservations/expire', requireAuth, async (req, res) => {
   const merchant = proposal.merchant || 'SARAL Merchant';
 
   // ---------------------------------------------------
-// Reservation API Endpoints
-// ---------------------------------------------------
+  // Reservation API Endpoints
+  // ---------------------------------------------------
 
-// POST /api/orders/:id/reserve – reserve stock for an order
-app.post('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
+  // POST /api/orders/:id/reserve – reserve stock for an order
+  app.post('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-  // Verify order exists and belongs to authenticated business
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id, status')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Reserve] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
-  if (order.status !== 'draft') {
-    return res.status(400).json({ error: `Cannot reserve stock for order in status '${order.status}'` });
-  }
+    // Verify order exists and belongs to authenticated business
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id, status')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Reserve] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
+    if (order.status !== 'draft') {
+      return res.status(400).json({ error: `Cannot reserve stock for order in status '${order.status}'` });
+    }
 
-  // Prevent duplicate reservations
-  const { data: existingRes, error: existingErr } = await sb
-    .from('inventory_reservations')
-    .select('id, expires_at')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (existingRes && new Date(existingRes.expires_at) > new Date()) {
-    return res.status(409).json({
-      error: 'Reservation already exists',
-      reservationId: existingRes.id,
-      expiresAt: existingRes.expires_at,
+    // Prevent duplicate reservations
+    const { data: existingRes, error: existingErr } = await sb
+      .from('inventory_reservations')
+      .select('id, expires_at')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (existingRes && new Date(existingRes.expires_at) > new Date()) {
+      return res.status(409).json({
+        error: 'Reservation already exists',
+        reservationId: existingRes.id,
+        expiresAt: existingRes.expires_at,
+      });
+    }
+
+    // Expected payload: { items: [{ inventory_item_id, quantity }, ...] }
+    const items = req.body.items;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Invalid or missing items payload' });
+    }
+
+    // Call the RPC to reserve stock atomically
+    const { data: rpcData, error: rpcErr } = await sb.rpc('reserve_stock_atomic', {
+      p_order_id: orderId,
+      p_items: items,
     });
-  }
+    if (rpcErr) {
+      console.error('[Reserve] RPC error', rpcErr);
+      return res.status(400).json({ error: rpcErr.message || 'Reservation failed' });
+    }
 
-  // Expected payload: { items: [{ inventory_item_id, quantity }, ...] }
-  const items = req.body.items;
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'Invalid or missing items payload' });
-  }
+    // Fetch the newly created reservation record
+    const { data: newRes, error: fetchResErr } = await sb
+      .from('inventory_reservations')
+      .select('id, expires_at')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    if (fetchResErr) {
+      console.error('[Reserve] Fetch reservation error', fetchResErr);
+      return res.status(500).json({ error: 'Reservation created but could not be retrieved' });
+    }
 
-  // Call the RPC to reserve stock atomically
-  const { data: rpcData, error: rpcErr } = await sb.rpc('reserve_stock_atomic', {
-    p_order_id: orderId,
-    p_items: items,
+    return res.status(201).json({
+      reservationId: newRes.id,
+      status: 'reserved',
+      expiresAt: newRes.expires_at,
+    });
   });
-  if (rpcErr) {
-    console.error('[Reserve] RPC error', rpcErr);
-    return res.status(400).json({ error: rpcErr.message || 'Reservation failed' });
-  }
 
-  // Fetch the newly created reservation record
-  const { data: newRes, error: fetchResErr } = await sb
-    .from('inventory_reservations')
-    .select('id, expires_at')
-    .eq('order_id', orderId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-  if (fetchResErr) {
-    console.error('[Reserve] Fetch reservation error', fetchResErr);
-    return res.status(500).json({ error: 'Reservation created but could not be retrieved' });
-  }
+  // DELETE /api/orders/:id/reserve – release reservation (e.g., on cancellation)
+  app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-  return res.status(201).json({
-    reservationId: newRes.id,
-    status: 'reserved',
-    expiresAt: newRes.expires_at,
+    // Verify ownership
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Release] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
+
+    // Get reservation
+    const { data: reservation, error: resErr } = await sb
+      .from('inventory_reservations')
+      .select('id')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (!reservation) {
+      return res.status(404).json({ error: 'No active reservation for this order' });
+    }
+
+    // Call atomic release RPC to restore stock and delete reservation
+    const { data: rpcData, error: rpcErr } = await sb.rpc('release_reservation_atomic', {
+      p_reservation_id: reservation.id,
+    });
+    if (rpcErr) {
+      console.error('[Release] RPC error', rpcErr);
+      return res.status(500).json({ error: rpcErr.message || 'Failed to release reservation' });
+    }
+
+    return res.status(200).json({
+      reservationId: reservation.id,
+      status: 'released',
+      details: rpcData,
+    });
   });
-});
+  app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-// DELETE /api/orders/:id/reserve – release reservation (e.g., on cancellation)
-app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
+    // Verify ownership
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Release] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
 
-  // Verify ownership
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Release] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
+    // Get reservation
+    const { data: reservation, error: resErr } = await sb
+      .from('inventory_reservations')
+      .select('id, inventory_item_id, quantity')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (!reservation) {
+      return res.status(404).json({ error: 'No active reservation for this order' });
+    }
 
-  // Get reservation
-  const { data: reservation, error: resErr } = await sb
-    .from('inventory_reservations')
-    .select('id')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (!reservation) {
-    return res.status(404).json({ error: 'No active reservation for this order' });
-  }
-
-  // Call atomic release RPC to restore stock and delete reservation
-  const { data: rpcData, error: rpcErr } = await sb.rpc('release_reservation_atomic', {
-    p_reservation_id: reservation.id,
-  });
-  if (rpcErr) {
-    console.error('[Release] RPC error', rpcErr);
-    return res.status(500).json({ error: rpcErr.message || 'Failed to release reservation' });
-  }
-
-  return res.status(200).json({
-    reservationId: reservation.id,
-    status: 'released',
-    details: rpcData,
-  });
-});
-app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
-
-  // Verify ownership
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Release] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
-
-  // Get reservation
-  const { data: reservation, error: resErr } = await sb
-    .from('inventory_reservations')
-    .select('id, inventory_item_id, quantity')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (!reservation) {
-    return res.status(404).json({ error: 'No active reservation for this order' });
-  }
-
-  // Restore stock – idempotent: increase quantity only if reservation still exists
-  const { error: updateErr } = await sb
-    .from('inventory_items')
-    .update({ quantity: sb.rpc('increment', { value: reservation.quantity }) }) // placeholder, will be replaced below
-    .eq('id', reservation.inventory_item_id);
-  // Supabase JS does not have a direct increment helper, so we perform a read‑modify‑write safely.
-  if (updateErr) {
-    console.error('[Release] Inventory update error', updateErr);
-    return res.status(500).json({ error: 'Failed to restore inventory stock' });
-  }
-
-  // Delete reservation record
-  const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', reservation.id);
-  if (delErr) {
-    console.error('[Release] Reservation delete error', delErr);
-    return res.status(500).json({ error: 'Failed to delete reservation' });
-  }
-
-  return res.status(200).json({
-    reservationId: reservation.id,
-    status: 'released',
-  });
-});
-
-// POST /api/reservations/expire – process expired reservations (can be called by external scheduler)
-app.post('/api/reservations/expire', requireAuth, async (req, res) => {
-  const sb = getSupabaseForRequest(req);
-  // Call RPC that atomically processes all expired reservations
-  const { data: procResult, error: procErr } = await sb.rpc('process_expired_reservations', {});
-  if (procErr) {
-    console.error('[Expiry] RPC error', procErr);
-    return res.status(500).json({ error: procErr.message || 'Failed to process expired reservations' });
-  }
-  return res.status(200).json({ processed: procResult?.processed || 0, message: 'Expired reservations cleaned up' });
-});
-app.post('/api/reservations/expire', requireAuth, async (req, res) => {
-  const sb = getSupabaseForRequest(req);
-  const now = new Date().toISOString();
-
-  // Find all reservations that have expired
-  const { data: expired, error: fetchErr } = await sb
-    .from('inventory_reservations')
-    .select('id, inventory_item_id, quantity')
-    .lt('expires_at', now);
-  if (fetchErr) {
-    console.error('[Expiry] Fetch error', fetchErr);
-    return res.status(500).json({ error: 'Failed to fetch expired reservations' });
-  }
-
-  let processed = 0;
-  for (const resv of expired) {
-    // Restore stock
-    const { error: updErr } = await sb
+    // Restore stock – idempotent: increase quantity only if reservation still exists
+    const { error: updateErr } = await sb
       .from('inventory_items')
-      .update({ quantity: sb.rpc('increment', { value: resv.quantity }) })
-      .eq('id', resv.inventory_item_id);
-    if (updErr) {
-      console.error('[Expiry] Stock restore error for reservation', resv.id, updErr);
-      continue;
+      .update({ quantity: sb.rpc('increment', { value: reservation.quantity }) }) // placeholder, will be replaced below
+      .eq('id', reservation.inventory_item_id);
+    // Supabase JS does not have a direct increment helper, so we perform a read‑modify‑write safely.
+    if (updateErr) {
+      console.error('[Release] Inventory update error', updateErr);
+      return res.status(500).json({ error: 'Failed to restore inventory stock' });
     }
-    // Delete reservation
-    const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', resv.id);
+
+    // Delete reservation record
+    const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', reservation.id);
     if (delErr) {
-      console.error('[Expiry] Delete error for reservation', resv.id, delErr);
-      continue;
+      console.error('[Release] Reservation delete error', delErr);
+      return res.status(500).json({ error: 'Failed to delete reservation' });
     }
-    processed++;
-  }
 
-  return res.status(200).json({ processed, message: 'Expired reservations cleaned up' });
-});
+    return res.status(200).json({
+      reservationId: reservation.id,
+      status: 'released',
+    });
+  });
 
-// ---------------------------------------------------------------------
+  // POST /api/reservations/expire – process expired reservations (can be called by external scheduler)
+  app.post('/api/reservations/expire', requireAuth, async (req, res) => {
+    const sb = getSupabaseForRequest(req);
+    // Call RPC that atomically processes all expired reservations
+    const { data: procResult, error: procErr } = await sb.rpc('process_expired_reservations', {});
+    if (procErr) {
+      console.error('[Expiry] RPC error', procErr);
+      return res.status(500).json({ error: procErr.message || 'Failed to process expired reservations' });
+    }
+    return res.status(200).json({ processed: procResult?.processed || 0, message: 'Expired reservations cleaned up' });
+  });
+  app.post('/api/reservations/expire', requireAuth, async (req, res) => {
+    const sb = getSupabaseForRequest(req);
+    const now = new Date().toISOString();
+
+    // Find all reservations that have expired
+    const { data: expired, error: fetchErr } = await sb
+      .from('inventory_reservations')
+      .select('id, inventory_item_id, quantity')
+      .lt('expires_at', now);
+    if (fetchErr) {
+      console.error('[Expiry] Fetch error', fetchErr);
+      return res.status(500).json({ error: 'Failed to fetch expired reservations' });
+    }
+
+    let processed = 0;
+    for (const resv of expired) {
+      // Restore stock
+      const { error: updErr } = await sb
+        .from('inventory_items')
+        .update({ quantity: sb.rpc('increment', { value: resv.quantity }) })
+        .eq('id', resv.inventory_item_id);
+      if (updErr) {
+        console.error('[Expiry] Stock restore error for reservation', resv.id, updErr);
+        continue;
+      }
+      // Delete reservation
+      const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', resv.id);
+      if (delErr) {
+        console.error('[Expiry] Delete error for reservation', resv.id, delErr);
+        continue;
+      }
+      processed++;
+    }
+
+    return res.status(200).json({ processed, message: 'Expired reservations cleaned up' });
+  });
+
+  // ---------------------------------------------------------------------
   // 2. Demo & Test Simulation Isolation
   // ---------------------------------------------------
-// Reservation API Endpoints
-// ---------------------------------------------------
+  // Reservation API Endpoints
+  // ---------------------------------------------------
 
-// POST /api/orders/:id/reserve – reserve stock for an order
-app.post('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
+  // POST /api/orders/:id/reserve – reserve stock for an order
+  app.post('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-  // Verify order exists and belongs to authenticated business
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id, status')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Reserve] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
-  if (order.status !== 'draft') {
-    return res.status(400).json({ error: `Cannot reserve stock for order in status '${order.status}'` });
-  }
+    // Verify order exists and belongs to authenticated business
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id, status')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Reserve] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
+    if (order.status !== 'draft') {
+      return res.status(400).json({ error: `Cannot reserve stock for order in status '${order.status}'` });
+    }
 
-  // Prevent duplicate reservations
-  const { data: existingRes, error: existingErr } = await sb
-    .from('inventory_reservations')
-    .select('id, expires_at')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (existingRes && new Date(existingRes.expires_at) > new Date()) {
-    return res.status(409).json({
-      error: 'Reservation already exists',
-      reservationId: existingRes.id,
-      expiresAt: existingRes.expires_at,
+    // Prevent duplicate reservations
+    const { data: existingRes, error: existingErr } = await sb
+      .from('inventory_reservations')
+      .select('id, expires_at')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (existingRes && new Date(existingRes.expires_at) > new Date()) {
+      return res.status(409).json({
+        error: 'Reservation already exists',
+        reservationId: existingRes.id,
+        expiresAt: existingRes.expires_at,
+      });
+    }
+
+    // Expected payload: { items: [{ inventory_item_id, quantity }, ...] }
+    const items = req.body.items;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Invalid or missing items payload' });
+    }
+
+    // Call the RPC to reserve stock atomically
+    const { data: rpcData, error: rpcErr } = await sb.rpc('reserve_stock_atomic', {
+      p_order_id: orderId,
+      p_items: items,
     });
-  }
+    if (rpcErr) {
+      console.error('[Reserve] RPC error', rpcErr);
+      return res.status(400).json({ error: rpcErr.message || 'Reservation failed' });
+    }
 
-  // Expected payload: { items: [{ inventory_item_id, quantity }, ...] }
-  const items = req.body.items;
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'Invalid or missing items payload' });
-  }
+    // Fetch the newly created reservation record
+    const { data: newRes, error: fetchResErr } = await sb
+      .from('inventory_reservations')
+      .select('id, expires_at')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    if (fetchResErr) {
+      console.error('[Reserve] Fetch reservation error', fetchResErr);
+      return res.status(500).json({ error: 'Reservation created but could not be retrieved' });
+    }
 
-  // Call the RPC to reserve stock atomically
-  const { data: rpcData, error: rpcErr } = await sb.rpc('reserve_stock_atomic', {
-    p_order_id: orderId,
-    p_items: items,
+    return res.status(201).json({
+      reservationId: newRes.id,
+      status: 'reserved',
+      expiresAt: newRes.expires_at,
+    });
   });
-  if (rpcErr) {
-    console.error('[Reserve] RPC error', rpcErr);
-    return res.status(400).json({ error: rpcErr.message || 'Reservation failed' });
-  }
 
-  // Fetch the newly created reservation record
-  const { data: newRes, error: fetchResErr } = await sb
-    .from('inventory_reservations')
-    .select('id, expires_at')
-    .eq('order_id', orderId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-  if (fetchResErr) {
-    console.error('[Reserve] Fetch reservation error', fetchResErr);
-    return res.status(500).json({ error: 'Reservation created but could not be retrieved' });
-  }
+  // DELETE /api/orders/:id/reserve – release reservation (e.g., on cancellation)
+  app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-  return res.status(201).json({
-    reservationId: newRes.id,
-    status: 'reserved',
-    expiresAt: newRes.expires_at,
+    // Verify ownership
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Release] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
+
+    // Get reservation
+    const { data: reservation, error: resErr } = await sb
+      .from('inventory_reservations')
+      .select('id')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (!reservation) {
+      return res.status(404).json({ error: 'No active reservation for this order' });
+    }
+
+    // Call atomic release RPC to restore stock and delete reservation
+    const { data: rpcData, error: rpcErr } = await sb.rpc('release_reservation_atomic', {
+      p_reservation_id: reservation.id,
+    });
+    if (rpcErr) {
+      console.error('[Release] RPC error', rpcErr);
+      return res.status(500).json({ error: rpcErr.message || 'Failed to release reservation' });
+    }
+
+    return res.status(200).json({
+      reservationId: reservation.id,
+      status: 'released',
+      details: rpcData,
+    });
   });
-});
+  app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-// DELETE /api/orders/:id/reserve – release reservation (e.g., on cancellation)
-app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
+    // Verify ownership
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Release] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
 
-  // Verify ownership
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Release] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
+    // Get reservation
+    const { data: reservation, error: resErr } = await sb
+      .from('inventory_reservations')
+      .select('id, inventory_item_id, quantity')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (!reservation) {
+      return res.status(404).json({ error: 'No active reservation for this order' });
+    }
 
-  // Get reservation
-  const { data: reservation, error: resErr } = await sb
-    .from('inventory_reservations')
-    .select('id')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (!reservation) {
-    return res.status(404).json({ error: 'No active reservation for this order' });
-  }
-
-  // Call atomic release RPC to restore stock and delete reservation
-  const { data: rpcData, error: rpcErr } = await sb.rpc('release_reservation_atomic', {
-    p_reservation_id: reservation.id,
-  });
-  if (rpcErr) {
-    console.error('[Release] RPC error', rpcErr);
-    return res.status(500).json({ error: rpcErr.message || 'Failed to release reservation' });
-  }
-
-  return res.status(200).json({
-    reservationId: reservation.id,
-    status: 'released',
-    details: rpcData,
-  });
-});
-app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
-
-  // Verify ownership
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Release] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
-
-  // Get reservation
-  const { data: reservation, error: resErr } = await sb
-    .from('inventory_reservations')
-    .select('id, inventory_item_id, quantity')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (!reservation) {
-    return res.status(404).json({ error: 'No active reservation for this order' });
-  }
-
-  // Restore stock – idempotent: increase quantity only if reservation still exists
-  const { error: updateErr } = await sb
-    .from('inventory_items')
-    .update({ quantity: sb.rpc('increment', { value: reservation.quantity }) }) // placeholder, will be replaced below
-    .eq('id', reservation.inventory_item_id);
-  // Supabase JS does not have a direct increment helper, so we perform a read‑modify‑write safely.
-  if (updateErr) {
-    console.error('[Release] Inventory update error', updateErr);
-    return res.status(500).json({ error: 'Failed to restore inventory stock' });
-  }
-
-  // Delete reservation record
-  const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', reservation.id);
-  if (delErr) {
-    console.error('[Release] Reservation delete error', delErr);
-    return res.status(500).json({ error: 'Failed to delete reservation' });
-  }
-
-  return res.status(200).json({
-    reservationId: reservation.id,
-    status: 'released',
-  });
-});
-
-// POST /api/reservations/expire – process expired reservations (can be called by external scheduler)
-app.post('/api/reservations/expire', requireAuth, async (req, res) => {
-  const sb = getSupabaseForRequest(req);
-  // Call RPC that atomically processes all expired reservations
-  const { data: procResult, error: procErr } = await sb.rpc('process_expired_reservations', {});
-  if (procErr) {
-    console.error('[Expiry] RPC error', procErr);
-    return res.status(500).json({ error: procErr.message || 'Failed to process expired reservations' });
-  }
-  return res.status(200).json({ processed: procResult?.processed || 0, message: 'Expired reservations cleaned up' });
-});
-app.post('/api/reservations/expire', requireAuth, async (req, res) => {
-  const sb = getSupabaseForRequest(req);
-  const now = new Date().toISOString();
-
-  // Find all reservations that have expired
-  const { data: expired, error: fetchErr } = await sb
-    .from('inventory_reservations')
-    .select('id, inventory_item_id, quantity')
-    .lt('expires_at', now);
-  if (fetchErr) {
-    console.error('[Expiry] Fetch error', fetchErr);
-    return res.status(500).json({ error: 'Failed to fetch expired reservations' });
-  }
-
-  let processed = 0;
-  for (const resv of expired) {
-    // Restore stock
-    const { error: updErr } = await sb
+    // Restore stock – idempotent: increase quantity only if reservation still exists
+    const { error: updateErr } = await sb
       .from('inventory_items')
-      .update({ quantity: sb.rpc('increment', { value: resv.quantity }) })
-      .eq('id', resv.inventory_item_id);
-    if (updErr) {
-      console.error('[Expiry] Stock restore error for reservation', resv.id, updErr);
-      continue;
+      .update({ quantity: sb.rpc('increment', { value: reservation.quantity }) }) // placeholder, will be replaced below
+      .eq('id', reservation.inventory_item_id);
+    // Supabase JS does not have a direct increment helper, so we perform a read‑modify‑write safely.
+    if (updateErr) {
+      console.error('[Release] Inventory update error', updateErr);
+      return res.status(500).json({ error: 'Failed to restore inventory stock' });
     }
-    // Delete reservation
-    const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', resv.id);
+
+    // Delete reservation record
+    const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', reservation.id);
     if (delErr) {
-      console.error('[Expiry] Delete error for reservation', resv.id, delErr);
-      continue;
+      console.error('[Release] Reservation delete error', delErr);
+      return res.status(500).json({ error: 'Failed to delete reservation' });
     }
-    processed++;
-  }
 
-  return res.status(200).json({ processed, message: 'Expired reservations cleaned up' });
-});
+    return res.status(200).json({
+      reservationId: reservation.id,
+      status: 'released',
+    });
+  });
 
-// ---------------------------------------------------------------------
+  // POST /api/reservations/expire – process expired reservations (can be called by external scheduler)
+  app.post('/api/reservations/expire', requireAuth, async (req, res) => {
+    const sb = getSupabaseForRequest(req);
+    // Call RPC that atomically processes all expired reservations
+    const { data: procResult, error: procErr } = await sb.rpc('process_expired_reservations', {});
+    if (procErr) {
+      console.error('[Expiry] RPC error', procErr);
+      return res.status(500).json({ error: procErr.message || 'Failed to process expired reservations' });
+    }
+    return res.status(200).json({ processed: procResult?.processed || 0, message: 'Expired reservations cleaned up' });
+  });
+  app.post('/api/reservations/expire', requireAuth, async (req, res) => {
+    const sb = getSupabaseForRequest(req);
+    const now = new Date().toISOString();
+
+    // Find all reservations that have expired
+    const { data: expired, error: fetchErr } = await sb
+      .from('inventory_reservations')
+      .select('id, inventory_item_id, quantity')
+      .lt('expires_at', now);
+    if (fetchErr) {
+      console.error('[Expiry] Fetch error', fetchErr);
+      return res.status(500).json({ error: 'Failed to fetch expired reservations' });
+    }
+
+    let processed = 0;
+    for (const resv of expired) {
+      // Restore stock
+      const { error: updErr } = await sb
+        .from('inventory_items')
+        .update({ quantity: sb.rpc('increment', { value: resv.quantity }) })
+        .eq('id', resv.inventory_item_id);
+      if (updErr) {
+        console.error('[Expiry] Stock restore error for reservation', resv.id, updErr);
+        continue;
+      }
+      // Delete reservation
+      const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', resv.id);
+      if (delErr) {
+        console.error('[Expiry] Delete error for reservation', resv.id, delErr);
+        continue;
+      }
+      processed++;
+    }
+
+    return res.status(200).json({ processed, message: 'Expired reservations cleaned up' });
+  });
+
+  // ---------------------------------------------------------------------
   if (req.user.isDemo || req.user.isTest) {
     const existingPayments = memoryStore.payments.get(req.user.id) || [];
     const pending = existingPayments.find(p => p.proposal_id === proposalId && p.status === 'pending' && p.order_id);
@@ -3306,454 +4003,454 @@ app.post('/api/reservations/expire', requireAuth, async (req, res) => {
   }
 
   // ---------------------------------------------------
-// Reservation API Endpoints
-// ---------------------------------------------------
+  // Reservation API Endpoints
+  // ---------------------------------------------------
 
-// POST /api/orders/:id/reserve – reserve stock for an order
-app.post('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
+  // POST /api/orders/:id/reserve – reserve stock for an order
+  app.post('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-  // Verify order exists and belongs to authenticated business
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id, status')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Reserve] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
-  if (order.status !== 'draft') {
-    return res.status(400).json({ error: `Cannot reserve stock for order in status '${order.status}'` });
-  }
+    // Verify order exists and belongs to authenticated business
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id, status')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Reserve] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
+    if (order.status !== 'draft') {
+      return res.status(400).json({ error: `Cannot reserve stock for order in status '${order.status}'` });
+    }
 
-  // Prevent duplicate reservations
-  const { data: existingRes, error: existingErr } = await sb
-    .from('inventory_reservations')
-    .select('id, expires_at')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (existingRes && new Date(existingRes.expires_at) > new Date()) {
-    return res.status(409).json({
-      error: 'Reservation already exists',
-      reservationId: existingRes.id,
-      expiresAt: existingRes.expires_at,
+    // Prevent duplicate reservations
+    const { data: existingRes, error: existingErr } = await sb
+      .from('inventory_reservations')
+      .select('id, expires_at')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (existingRes && new Date(existingRes.expires_at) > new Date()) {
+      return res.status(409).json({
+        error: 'Reservation already exists',
+        reservationId: existingRes.id,
+        expiresAt: existingRes.expires_at,
+      });
+    }
+
+    // Expected payload: { items: [{ inventory_item_id, quantity }, ...] }
+    const items = req.body.items;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Invalid or missing items payload' });
+    }
+
+    // Call the RPC to reserve stock atomically
+    const { data: rpcData, error: rpcErr } = await sb.rpc('reserve_stock_atomic', {
+      p_order_id: orderId,
+      p_items: items,
     });
-  }
+    if (rpcErr) {
+      console.error('[Reserve] RPC error', rpcErr);
+      return res.status(400).json({ error: rpcErr.message || 'Reservation failed' });
+    }
 
-  // Expected payload: { items: [{ inventory_item_id, quantity }, ...] }
-  const items = req.body.items;
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'Invalid or missing items payload' });
-  }
+    // Fetch the newly created reservation record
+    const { data: newRes, error: fetchResErr } = await sb
+      .from('inventory_reservations')
+      .select('id, expires_at')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    if (fetchResErr) {
+      console.error('[Reserve] Fetch reservation error', fetchResErr);
+      return res.status(500).json({ error: 'Reservation created but could not be retrieved' });
+    }
 
-  // Call the RPC to reserve stock atomically
-  const { data: rpcData, error: rpcErr } = await sb.rpc('reserve_stock_atomic', {
-    p_order_id: orderId,
-    p_items: items,
+    return res.status(201).json({
+      reservationId: newRes.id,
+      status: 'reserved',
+      expiresAt: newRes.expires_at,
+    });
   });
-  if (rpcErr) {
-    console.error('[Reserve] RPC error', rpcErr);
-    return res.status(400).json({ error: rpcErr.message || 'Reservation failed' });
-  }
 
-  // Fetch the newly created reservation record
-  const { data: newRes, error: fetchResErr } = await sb
-    .from('inventory_reservations')
-    .select('id, expires_at')
-    .eq('order_id', orderId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-  if (fetchResErr) {
-    console.error('[Reserve] Fetch reservation error', fetchResErr);
-    return res.status(500).json({ error: 'Reservation created but could not be retrieved' });
-  }
+  // DELETE /api/orders/:id/reserve – release reservation (e.g., on cancellation)
+  app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-  return res.status(201).json({
-    reservationId: newRes.id,
-    status: 'reserved',
-    expiresAt: newRes.expires_at,
+    // Verify ownership
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Release] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
+
+    // Get reservation
+    const { data: reservation, error: resErr } = await sb
+      .from('inventory_reservations')
+      .select('id')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (!reservation) {
+      return res.status(404).json({ error: 'No active reservation for this order' });
+    }
+
+    // Call atomic release RPC to restore stock and delete reservation
+    const { data: rpcData, error: rpcErr } = await sb.rpc('release_reservation_atomic', {
+      p_reservation_id: reservation.id,
+    });
+    if (rpcErr) {
+      console.error('[Release] RPC error', rpcErr);
+      return res.status(500).json({ error: rpcErr.message || 'Failed to release reservation' });
+    }
+
+    return res.status(200).json({
+      reservationId: reservation.id,
+      status: 'released',
+      details: rpcData,
+    });
   });
-});
+  app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-// DELETE /api/orders/:id/reserve – release reservation (e.g., on cancellation)
-app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
+    // Verify ownership
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Release] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
 
-  // Verify ownership
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Release] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
+    // Get reservation
+    const { data: reservation, error: resErr } = await sb
+      .from('inventory_reservations')
+      .select('id, inventory_item_id, quantity')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (!reservation) {
+      return res.status(404).json({ error: 'No active reservation for this order' });
+    }
 
-  // Get reservation
-  const { data: reservation, error: resErr } = await sb
-    .from('inventory_reservations')
-    .select('id')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (!reservation) {
-    return res.status(404).json({ error: 'No active reservation for this order' });
-  }
-
-  // Call atomic release RPC to restore stock and delete reservation
-  const { data: rpcData, error: rpcErr } = await sb.rpc('release_reservation_atomic', {
-    p_reservation_id: reservation.id,
-  });
-  if (rpcErr) {
-    console.error('[Release] RPC error', rpcErr);
-    return res.status(500).json({ error: rpcErr.message || 'Failed to release reservation' });
-  }
-
-  return res.status(200).json({
-    reservationId: reservation.id,
-    status: 'released',
-    details: rpcData,
-  });
-});
-app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
-
-  // Verify ownership
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Release] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
-
-  // Get reservation
-  const { data: reservation, error: resErr } = await sb
-    .from('inventory_reservations')
-    .select('id, inventory_item_id, quantity')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (!reservation) {
-    return res.status(404).json({ error: 'No active reservation for this order' });
-  }
-
-  // Restore stock – idempotent: increase quantity only if reservation still exists
-  const { error: updateErr } = await sb
-    .from('inventory_items')
-    .update({ quantity: sb.rpc('increment', { value: reservation.quantity }) }) // placeholder, will be replaced below
-    .eq('id', reservation.inventory_item_id);
-  // Supabase JS does not have a direct increment helper, so we perform a read‑modify‑write safely.
-  if (updateErr) {
-    console.error('[Release] Inventory update error', updateErr);
-    return res.status(500).json({ error: 'Failed to restore inventory stock' });
-  }
-
-  // Delete reservation record
-  const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', reservation.id);
-  if (delErr) {
-    console.error('[Release] Reservation delete error', delErr);
-    return res.status(500).json({ error: 'Failed to delete reservation' });
-  }
-
-  return res.status(200).json({
-    reservationId: reservation.id,
-    status: 'released',
-  });
-});
-
-// POST /api/reservations/expire – process expired reservations (can be called by external scheduler)
-app.post('/api/reservations/expire', requireAuth, async (req, res) => {
-  const sb = getSupabaseForRequest(req);
-  // Call RPC that atomically processes all expired reservations
-  const { data: procResult, error: procErr } = await sb.rpc('process_expired_reservations', {});
-  if (procErr) {
-    console.error('[Expiry] RPC error', procErr);
-    return res.status(500).json({ error: procErr.message || 'Failed to process expired reservations' });
-  }
-  return res.status(200).json({ processed: procResult?.processed || 0, message: 'Expired reservations cleaned up' });
-});
-app.post('/api/reservations/expire', requireAuth, async (req, res) => {
-  const sb = getSupabaseForRequest(req);
-  const now = new Date().toISOString();
-
-  // Find all reservations that have expired
-  const { data: expired, error: fetchErr } = await sb
-    .from('inventory_reservations')
-    .select('id, inventory_item_id, quantity')
-    .lt('expires_at', now);
-  if (fetchErr) {
-    console.error('[Expiry] Fetch error', fetchErr);
-    return res.status(500).json({ error: 'Failed to fetch expired reservations' });
-  }
-
-  let processed = 0;
-  for (const resv of expired) {
-    // Restore stock
-    const { error: updErr } = await sb
+    // Restore stock – idempotent: increase quantity only if reservation still exists
+    const { error: updateErr } = await sb
       .from('inventory_items')
-      .update({ quantity: sb.rpc('increment', { value: resv.quantity }) })
-      .eq('id', resv.inventory_item_id);
-    if (updErr) {
-      console.error('[Expiry] Stock restore error for reservation', resv.id, updErr);
-      continue;
+      .update({ quantity: sb.rpc('increment', { value: reservation.quantity }) }) // placeholder, will be replaced below
+      .eq('id', reservation.inventory_item_id);
+    // Supabase JS does not have a direct increment helper, so we perform a read‑modify‑write safely.
+    if (updateErr) {
+      console.error('[Release] Inventory update error', updateErr);
+      return res.status(500).json({ error: 'Failed to restore inventory stock' });
     }
-    // Delete reservation
-    const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', resv.id);
+
+    // Delete reservation record
+    const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', reservation.id);
     if (delErr) {
-      console.error('[Expiry] Delete error for reservation', resv.id, delErr);
-      continue;
+      console.error('[Release] Reservation delete error', delErr);
+      return res.status(500).json({ error: 'Failed to delete reservation' });
     }
-    processed++;
-  }
 
-  return res.status(200).json({ processed, message: 'Expired reservations cleaned up' });
-});
+    return res.status(200).json({
+      reservationId: reservation.id,
+      status: 'released',
+    });
+  });
 
-// ---------------------------------------------------------------------
+  // POST /api/reservations/expire – process expired reservations (can be called by external scheduler)
+  app.post('/api/reservations/expire', requireAuth, async (req, res) => {
+    const sb = getSupabaseForRequest(req);
+    // Call RPC that atomically processes all expired reservations
+    const { data: procResult, error: procErr } = await sb.rpc('process_expired_reservations', {});
+    if (procErr) {
+      console.error('[Expiry] RPC error', procErr);
+      return res.status(500).json({ error: procErr.message || 'Failed to process expired reservations' });
+    }
+    return res.status(200).json({ processed: procResult?.processed || 0, message: 'Expired reservations cleaned up' });
+  });
+  app.post('/api/reservations/expire', requireAuth, async (req, res) => {
+    const sb = getSupabaseForRequest(req);
+    const now = new Date().toISOString();
+
+    // Find all reservations that have expired
+    const { data: expired, error: fetchErr } = await sb
+      .from('inventory_reservations')
+      .select('id, inventory_item_id, quantity')
+      .lt('expires_at', now);
+    if (fetchErr) {
+      console.error('[Expiry] Fetch error', fetchErr);
+      return res.status(500).json({ error: 'Failed to fetch expired reservations' });
+    }
+
+    let processed = 0;
+    for (const resv of expired) {
+      // Restore stock
+      const { error: updErr } = await sb
+        .from('inventory_items')
+        .update({ quantity: sb.rpc('increment', { value: resv.quantity }) })
+        .eq('id', resv.inventory_item_id);
+      if (updErr) {
+        console.error('[Expiry] Stock restore error for reservation', resv.id, updErr);
+        continue;
+      }
+      // Delete reservation
+      const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', resv.id);
+      if (delErr) {
+        console.error('[Expiry] Delete error for reservation', resv.id, delErr);
+        continue;
+      }
+      processed++;
+    }
+
+    return res.status(200).json({ processed, message: 'Expired reservations cleaned up' });
+  });
+
+  // ---------------------------------------------------------------------
   // 3. Real Users — PayPal Credentials & Pending Order Check
   // ---------------------------------------------------
-// Reservation API Endpoints
-// ---------------------------------------------------
+  // Reservation API Endpoints
+  // ---------------------------------------------------
 
-// POST /api/orders/:id/reserve – reserve stock for an order
-app.post('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
+  // POST /api/orders/:id/reserve – reserve stock for an order
+  app.post('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-  // Verify order exists and belongs to authenticated business
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id, status')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Reserve] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
-  if (order.status !== 'draft') {
-    return res.status(400).json({ error: `Cannot reserve stock for order in status '${order.status}'` });
-  }
+    // Verify order exists and belongs to authenticated business
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id, status')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Reserve] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
+    if (order.status !== 'draft') {
+      return res.status(400).json({ error: `Cannot reserve stock for order in status '${order.status}'` });
+    }
 
-  // Prevent duplicate reservations
-  const { data: existingRes, error: existingErr } = await sb
-    .from('inventory_reservations')
-    .select('id, expires_at')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (existingRes && new Date(existingRes.expires_at) > new Date()) {
-    return res.status(409).json({
-      error: 'Reservation already exists',
-      reservationId: existingRes.id,
-      expiresAt: existingRes.expires_at,
+    // Prevent duplicate reservations
+    const { data: existingRes, error: existingErr } = await sb
+      .from('inventory_reservations')
+      .select('id, expires_at')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (existingRes && new Date(existingRes.expires_at) > new Date()) {
+      return res.status(409).json({
+        error: 'Reservation already exists',
+        reservationId: existingRes.id,
+        expiresAt: existingRes.expires_at,
+      });
+    }
+
+    // Expected payload: { items: [{ inventory_item_id, quantity }, ...] }
+    const items = req.body.items;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Invalid or missing items payload' });
+    }
+
+    // Call the RPC to reserve stock atomically
+    const { data: rpcData, error: rpcErr } = await sb.rpc('reserve_stock_atomic', {
+      p_order_id: orderId,
+      p_items: items,
     });
-  }
+    if (rpcErr) {
+      console.error('[Reserve] RPC error', rpcErr);
+      return res.status(400).json({ error: rpcErr.message || 'Reservation failed' });
+    }
 
-  // Expected payload: { items: [{ inventory_item_id, quantity }, ...] }
-  const items = req.body.items;
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'Invalid or missing items payload' });
-  }
+    // Fetch the newly created reservation record
+    const { data: newRes, error: fetchResErr } = await sb
+      .from('inventory_reservations')
+      .select('id, expires_at')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    if (fetchResErr) {
+      console.error('[Reserve] Fetch reservation error', fetchResErr);
+      return res.status(500).json({ error: 'Reservation created but could not be retrieved' });
+    }
 
-  // Call the RPC to reserve stock atomically
-  const { data: rpcData, error: rpcErr } = await sb.rpc('reserve_stock_atomic', {
-    p_order_id: orderId,
-    p_items: items,
+    return res.status(201).json({
+      reservationId: newRes.id,
+      status: 'reserved',
+      expiresAt: newRes.expires_at,
+    });
   });
-  if (rpcErr) {
-    console.error('[Reserve] RPC error', rpcErr);
-    return res.status(400).json({ error: rpcErr.message || 'Reservation failed' });
-  }
 
-  // Fetch the newly created reservation record
-  const { data: newRes, error: fetchResErr } = await sb
-    .from('inventory_reservations')
-    .select('id, expires_at')
-    .eq('order_id', orderId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-  if (fetchResErr) {
-    console.error('[Reserve] Fetch reservation error', fetchResErr);
-    return res.status(500).json({ error: 'Reservation created but could not be retrieved' });
-  }
+  // DELETE /api/orders/:id/reserve – release reservation (e.g., on cancellation)
+  app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-  return res.status(201).json({
-    reservationId: newRes.id,
-    status: 'reserved',
-    expiresAt: newRes.expires_at,
+    // Verify ownership
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Release] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
+
+    // Get reservation
+    const { data: reservation, error: resErr } = await sb
+      .from('inventory_reservations')
+      .select('id')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (!reservation) {
+      return res.status(404).json({ error: 'No active reservation for this order' });
+    }
+
+    // Call atomic release RPC to restore stock and delete reservation
+    const { data: rpcData, error: rpcErr } = await sb.rpc('release_reservation_atomic', {
+      p_reservation_id: reservation.id,
+    });
+    if (rpcErr) {
+      console.error('[Release] RPC error', rpcErr);
+      return res.status(500).json({ error: rpcErr.message || 'Failed to release reservation' });
+    }
+
+    return res.status(200).json({
+      reservationId: reservation.id,
+      status: 'released',
+      details: rpcData,
+    });
   });
-});
+  app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
+    const orderId = req.params.id;
+    const sb = getSupabaseForRequest(req);
 
-// DELETE /api/orders/:id/reserve – release reservation (e.g., on cancellation)
-app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
+    // Verify ownership
+    const { data: order, error: orderErr, status: orderStatus } = await sb
+      .from('orders')
+      .select('id, business_id')
+      .eq('id', orderId)
+      .single();
+    if (orderErr) {
+      if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
+      console.error('[Release] Order fetch error', orderErr);
+      return res.status(500).json({ error: 'Failed to fetch order' });
+    }
+    if (order.business_id !== req.user.id) {
+      return res.status(403).json({ error: 'Order does not belong to your business' });
+    }
 
-  // Verify ownership
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Release] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
+    // Get reservation
+    const { data: reservation, error: resErr } = await sb
+      .from('inventory_reservations')
+      .select('id, inventory_item_id, quantity')
+      .eq('order_id', orderId)
+      .maybeSingle();
+    if (!reservation) {
+      return res.status(404).json({ error: 'No active reservation for this order' });
+    }
 
-  // Get reservation
-  const { data: reservation, error: resErr } = await sb
-    .from('inventory_reservations')
-    .select('id')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (!reservation) {
-    return res.status(404).json({ error: 'No active reservation for this order' });
-  }
-
-  // Call atomic release RPC to restore stock and delete reservation
-  const { data: rpcData, error: rpcErr } = await sb.rpc('release_reservation_atomic', {
-    p_reservation_id: reservation.id,
-  });
-  if (rpcErr) {
-    console.error('[Release] RPC error', rpcErr);
-    return res.status(500).json({ error: rpcErr.message || 'Failed to release reservation' });
-  }
-
-  return res.status(200).json({
-    reservationId: reservation.id,
-    status: 'released',
-    details: rpcData,
-  });
-});
-app.delete('/api/orders/:id/reserve', requireAuth, async (req, res) => {
-  const orderId = req.params.id;
-  const sb = getSupabaseForRequest(req);
-
-  // Verify ownership
-  const { data: order, error: orderErr, status: orderStatus } = await sb
-    .from('orders')
-    .select('id, business_id')
-    .eq('id', orderId)
-    .single();
-  if (orderErr) {
-    if (orderStatus === 404) return res.status(404).json({ error: 'Order not found' });
-    console.error('[Release] Order fetch error', orderErr);
-    return res.status(500).json({ error: 'Failed to fetch order' });
-  }
-  if (order.business_id !== req.user.id) {
-    return res.status(403).json({ error: 'Order does not belong to your business' });
-  }
-
-  // Get reservation
-  const { data: reservation, error: resErr } = await sb
-    .from('inventory_reservations')
-    .select('id, inventory_item_id, quantity')
-    .eq('order_id', orderId)
-    .maybeSingle();
-  if (!reservation) {
-    return res.status(404).json({ error: 'No active reservation for this order' });
-  }
-
-  // Restore stock – idempotent: increase quantity only if reservation still exists
-  const { error: updateErr } = await sb
-    .from('inventory_items')
-    .update({ quantity: sb.rpc('increment', { value: reservation.quantity }) }) // placeholder, will be replaced below
-    .eq('id', reservation.inventory_item_id);
-  // Supabase JS does not have a direct increment helper, so we perform a read‑modify‑write safely.
-  if (updateErr) {
-    console.error('[Release] Inventory update error', updateErr);
-    return res.status(500).json({ error: 'Failed to restore inventory stock' });
-  }
-
-  // Delete reservation record
-  const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', reservation.id);
-  if (delErr) {
-    console.error('[Release] Reservation delete error', delErr);
-    return res.status(500).json({ error: 'Failed to delete reservation' });
-  }
-
-  return res.status(200).json({
-    reservationId: reservation.id,
-    status: 'released',
-  });
-});
-
-// POST /api/reservations/expire – process expired reservations (can be called by external scheduler)
-app.post('/api/reservations/expire', requireAuth, async (req, res) => {
-  const sb = getSupabaseForRequest(req);
-  // Call RPC that atomically processes all expired reservations
-  const { data: procResult, error: procErr } = await sb.rpc('process_expired_reservations', {});
-  if (procErr) {
-    console.error('[Expiry] RPC error', procErr);
-    return res.status(500).json({ error: procErr.message || 'Failed to process expired reservations' });
-  }
-  return res.status(200).json({ processed: procResult?.processed || 0, message: 'Expired reservations cleaned up' });
-});
-app.post('/api/reservations/expire', requireAuth, async (req, res) => {
-  const sb = getSupabaseForRequest(req);
-  const now = new Date().toISOString();
-
-  // Find all reservations that have expired
-  const { data: expired, error: fetchErr } = await sb
-    .from('inventory_reservations')
-    .select('id, inventory_item_id, quantity')
-    .lt('expires_at', now);
-  if (fetchErr) {
-    console.error('[Expiry] Fetch error', fetchErr);
-    return res.status(500).json({ error: 'Failed to fetch expired reservations' });
-  }
-
-  let processed = 0;
-  for (const resv of expired) {
-    // Restore stock
-    const { error: updErr } = await sb
+    // Restore stock – idempotent: increase quantity only if reservation still exists
+    const { error: updateErr } = await sb
       .from('inventory_items')
-      .update({ quantity: sb.rpc('increment', { value: resv.quantity }) })
-      .eq('id', resv.inventory_item_id);
-    if (updErr) {
-      console.error('[Expiry] Stock restore error for reservation', resv.id, updErr);
-      continue;
+      .update({ quantity: sb.rpc('increment', { value: reservation.quantity }) }) // placeholder, will be replaced below
+      .eq('id', reservation.inventory_item_id);
+    // Supabase JS does not have a direct increment helper, so we perform a read‑modify‑write safely.
+    if (updateErr) {
+      console.error('[Release] Inventory update error', updateErr);
+      return res.status(500).json({ error: 'Failed to restore inventory stock' });
     }
-    // Delete reservation
-    const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', resv.id);
+
+    // Delete reservation record
+    const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', reservation.id);
     if (delErr) {
-      console.error('[Expiry] Delete error for reservation', resv.id, delErr);
-      continue;
+      console.error('[Release] Reservation delete error', delErr);
+      return res.status(500).json({ error: 'Failed to delete reservation' });
     }
-    processed++;
-  }
 
-  return res.status(200).json({ processed, message: 'Expired reservations cleaned up' });
-});
+    return res.status(200).json({
+      reservationId: reservation.id,
+      status: 'released',
+    });
+  });
 
-// ---------------------------------------------------------------------
+  // POST /api/reservations/expire – process expired reservations (can be called by external scheduler)
+  app.post('/api/reservations/expire', requireAuth, async (req, res) => {
+    const sb = getSupabaseForRequest(req);
+    // Call RPC that atomically processes all expired reservations
+    const { data: procResult, error: procErr } = await sb.rpc('process_expired_reservations', {});
+    if (procErr) {
+      console.error('[Expiry] RPC error', procErr);
+      return res.status(500).json({ error: procErr.message || 'Failed to process expired reservations' });
+    }
+    return res.status(200).json({ processed: procResult?.processed || 0, message: 'Expired reservations cleaned up' });
+  });
+  app.post('/api/reservations/expire', requireAuth, async (req, res) => {
+    const sb = getSupabaseForRequest(req);
+    const now = new Date().toISOString();
+
+    // Find all reservations that have expired
+    const { data: expired, error: fetchErr } = await sb
+      .from('inventory_reservations')
+      .select('id, inventory_item_id, quantity')
+      .lt('expires_at', now);
+    if (fetchErr) {
+      console.error('[Expiry] Fetch error', fetchErr);
+      return res.status(500).json({ error: 'Failed to fetch expired reservations' });
+    }
+
+    let processed = 0;
+    for (const resv of expired) {
+      // Restore stock
+      const { error: updErr } = await sb
+        .from('inventory_items')
+        .update({ quantity: sb.rpc('increment', { value: resv.quantity }) })
+        .eq('id', resv.inventory_item_id);
+      if (updErr) {
+        console.error('[Expiry] Stock restore error for reservation', resv.id, updErr);
+        continue;
+      }
+      // Delete reservation
+      const { error: delErr } = await sb.from('inventory_reservations').delete().eq('id', resv.id);
+      if (delErr) {
+        console.error('[Expiry] Delete error for reservation', resv.id, delErr);
+        continue;
+      }
+      processed++;
+    }
+
+    return res.status(200).json({ processed, message: 'Expired reservations cleaned up' });
+  });
+
+  // ---------------------------------------------------------------------
   if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
     return res.status(503).json({ error: 'PayPal credentials not configured' });
   }
@@ -5003,6 +5700,122 @@ app.post('/api/paypal/webhook', async (req, res) => {
   }
 
   res.status(200).json({ received: true });
+});
+
+// ============================================================================
+// SARAL COMPANION PAIRING CODE STORE & ENDPOINTS
+// In-memory TTL store (per-process). For multi-instance deployments, replace
+// with Redis or Supabase row. Codes expire after 15 minutes.
+// ============================================================================
+
+/** @type {Map<string, {userId: string, email: string, token: string, user: object, expiresAt: number}>} */
+const pairingCodeStore = new Map();
+const PAIRING_CODE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+// Garbage-collect expired codes every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, entry] of pairingCodeStore) {
+    if (entry.expiresAt < now) pairingCodeStore.delete(code);
+  }
+}, 5 * 60 * 1000);
+
+/**
+ * POST /api/companion/generate-code
+ * Authenticated route: binds the calling user's real session to a short-lived pairing code.
+ * saral.html calls this when the user opens the pairing modal.
+ */
+app.post('/api/companion/generate-code', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  const userEmail = req.user.email;
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.split(' ')[1] || '';
+
+  // Build real user object (fetch from profiles table if real user, derive otherwise)
+  let fullName = '';
+  let displayName = '';
+  let initials = 'U';
+  let avatarUrl = '';
+
+  if (!req.user.isDemo && supabase) {
+    try {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('full_name, display_name, avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+      if (prof) {
+        fullName = prof.full_name || '';
+        displayName = prof.display_name || '';
+        avatarUrl = prof.avatar_url || '';
+      }
+    } catch (e) {}
+  }
+
+  // Derive from email if profile table had no data
+  fullName = fullName || (userEmail ? userEmail.split('@')[0] : 'User');
+  displayName = displayName || fullName.split(' ')[0] || 'User';
+  initials = fullName.split(' ').filter(Boolean).map(p => p[0]).join('').substring(0, 2).toUpperCase() || 'U';
+
+  // Generate a code in the same format as the frontend: SARAL-NNNN-XX
+  const randNum = String(Math.floor(1000 + Math.random() * 9000));
+  const randAlpha = Math.random().toString(36).substring(2, 4).toUpperCase();
+  const code = `SARAL-${randNum}-${randAlpha}`;
+
+  pairingCodeStore.set(code, {
+    userId,
+    email: userEmail,
+    token,
+    user: {
+      id: userId,
+      email: userEmail,
+      full_name: fullName,
+      display_name: displayName,
+      initials,
+      avatar_url: avatarUrl,
+      is_demo: Boolean(req.user.isDemo)
+    },
+    expiresAt: Date.now() + PAIRING_CODE_TTL_MS
+  });
+
+  return res.json({
+    success: true,
+    code,
+    expiresInSeconds: PAIRING_CODE_TTL_MS / 1000
+  });
+});
+
+/**
+ * POST /api/companion/pair
+ * Public route: Extension calls with the user-entered code.
+ * Returns the real session token + user profile scoped to that code.
+ */
+app.post('/api/companion/pair', async (req, res) => {
+  const { code } = req.body || {};
+  if (!code || typeof code !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid pairing code.' });
+  }
+
+  const normalizedCode = code.trim().toUpperCase();
+  const entry = pairingCodeStore.get(normalizedCode);
+
+  if (!entry) {
+    return res.status(404).json({ error: 'Pairing code not found. Generate a new code from the SARAL web app.' });
+  }
+
+  if (entry.expiresAt < Date.now()) {
+    pairingCodeStore.delete(normalizedCode);
+    return res.status(400).json({ error: 'Pairing code has expired. Please generate a new code.' });
+  }
+
+  // Consume the code (single-use)
+  pairingCodeStore.delete(normalizedCode);
+
+  return res.json({
+    success: true,
+    token: entry.token,
+    user: entry.user
+  });
 });
 
 // Root route: Serve saral.html
